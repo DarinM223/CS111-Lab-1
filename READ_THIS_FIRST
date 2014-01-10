@@ -1,0 +1,5 @@
+CS111 Lab 1
+
+Most of the changes should be done to testing-branch, not the master branch also unnecessary object files from compilers should be untracked before commiting
+(basically through git rm *.o --cached). Also to amend a commit use 
+git commit --amend
