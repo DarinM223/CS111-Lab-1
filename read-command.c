@@ -22,6 +22,7 @@ struct command_stream {
         int index; /*current index of commands*/
 };
 
+
 /************************************************************
  ** functions either implemented or want to be implemented **
  ************************************************************/
@@ -31,19 +32,33 @@ int append(int ch, char** str, int *str_size);
 
 /*command functions*/
 int isValidWordChar(char c); /*implemented*/
-command_t* createSimpleCommand(char *str);
-command_t* createOperatorCommand(int op_type, command_t* prevCom1, command_t* prevCom2);
-int addSimpleCommand(char *str); /*implemented*/
+int precedence(int op_type);
+int dealWithOperator(int op_type);
+command_t* createSimpleCommand(char *str); /* don't forget to break words up! Also resize!!*/
 
+typedef struct _stackCom {
+    int capacity;
+    int size;
+    command_t** _commands;
+} stackCom;
 /*command stack functions*/
-command_t* commandPop();
-command_t* commandPeek();
-int commandPush(command_t *c);
+void freeStackCom(stackCom *s);
+void initStackCom(stackCom *s);
+command_t* commandPop(stackCom *s);
+command_t* commandPeek(stackCom *s);
+int commandPush(stackCom *s, command_t *c);
 
+typedef struct _stackOp {
+    int capacity;
+    int size;
+    int* _operators;
+} stackOp;
 /*operator stack functions*/
-int opPop();
-int opPeek();
-int opPush(int op_type);
+void freeStackOp(stackOp *s);
+void initStackOp(stackOp *s);
+int opPop(stackOp *s);
+int opPeek(stackOp *s);
+int opPush(stackOp *s, int op_type);
 
 /*command tree functions*/
 int sizeOfTree(command_t* commandTree);
@@ -70,8 +85,9 @@ make_command_stream (int (*get_next_byte) (void *),
           }
           if (prevChar == '|') { /*if the previous character was '|' */
                /*its a pipeline*/
-               addSimpleCommand(str);
-               addOp(PIPE_COMMAND);
+               command_t* com = createSimpleCommand(str);
+               commandPush(com);
+               dealWithOperator(PIPE_COMMAND);
                prevChar = 0;
           }
           append(curByte, &str, &str_size); /*add the word to a temporary string (will resize if necessary)*/
@@ -80,18 +96,18 @@ make_command_stream (int (*get_next_byte) (void *),
           if (c == '&') {
               if (prevChar == '&') {
                   /*its a double and*/
-                  addSimpleCommand(str);
-                  /*push and to operator stack*/
-                  addOp(AND_COMMAND);
+                  command_t* com = createSimpleCommand(str);
+                  commandPush(com);
+                  dealWithOperator(AND_COMMAND);
                   prevChar = 0;
               } else 
                   prevChar = '&';
           }  else if (c == '|') {
               if (prevChar == '|') {
                   /*its a double or*/
-                  addSimpleCommand(str);
-                  /*push or to operator stack*/
-                  addOp(OR_COMMAND);
+                  command_t* com = createSimpleCommand(str);
+                  commandPush(com);
+                  dealWithOperator(OR_COMMAND);
                   prevChar = 0;
               } else
                   prevChar = '|';
