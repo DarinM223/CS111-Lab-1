@@ -22,27 +22,32 @@ struct command_stream {
         int index; /*current index of commands*/
 };
 
-int isValidWordChar(char c) { /*checks if character is valid word character*/
-    return (isascii(c) && (isalum(c) || strchr("!%+,-./:@^_",c)));
-}
+/************************************************************
+ ** functions either implemented or want to be implemented **
+ ************************************************************/
 
-/* returns 0 if an operator command was created, 1 if the only thing that happened was the command was pushed on the stack*/
-int addSimpleCommand(char *str) {
-      /*push str to command stack*/
-      command_t c = createSimpleCommand(str);
-      addCommand(c);
-      /*peek at operator stack*/
-      if (opPeek() != -1 && commandSize() >= 2) {
-            /*create command with the current operator and 2 most current commands*/
-            command_t prevCom1 = commandPop();
-            command_t prevCom2 = commandPop();
-            command_t c = createOperatorCommand(opPop(), prevCom1, prevCom2);
-            /*push command onto command stack*/
-            addCommand(c);
-            return 0;
-      }
-      return 1;
-}
+/*string functions*/
+int append(int ch, char** str, int *str_size);
+
+/*command functions*/
+int isValidWordChar(char c); /*implemented*/
+command_t* createSimpleCommand(char *str);
+command_t* createOperatorCommand(int op_type, command_t* prevCom1, command_t* prevCom2);
+int addSimpleCommand(char *str); /*implemented*/
+
+/*command stack functions*/
+command_t* commandPop();
+command_t* commandPeek();
+int commandPush(command_t *c);
+
+/*operator stack functions*/
+int opPop();
+int opPeek();
+int opPush(int op_type);
+
+/*command tree functions*/
+int sizeOfTree(command_t* commandTree);
+command_stream_t buildStream(command_t* commandTree);
 
 
 command_stream_t
@@ -90,7 +95,7 @@ make_command_stream (int (*get_next_byte) (void *),
                   prevChar = 0;
               } else
                   prevChar = '|';
-          } else if (prevChar == '&' || prevChar == '|')  { /* if the character isn't '&' but the previous character was*/
+          } else if (prevChar == '&' || prevChar == '|')  { /* if the character isn't '&' or '|' but the previous character was*/
               /*print error*/
           } else if (c == ';') { /* if the character is the ';' character */
                   addSimpleCommand(str);
@@ -102,7 +107,10 @@ make_command_stream (int (*get_next_byte) (void *),
       }
   }
   /*get the command tree*/
-  command_t command_tree = commandPop();
+  command_t *command_tree = commandPop();
+  return buildStream(command_tree);
+
+
   /*get the size of the tree to allocate*/
   commands_size = sizeOfTree(command_tree);
   /*initialize stream*/
@@ -111,17 +119,62 @@ make_command_stream (int (*get_next_byte) (void *),
   stream->commandNum = 0;
   stream->index = 0;
   /*build the stream from the command tree*/
-  return buildStream(stream, command_tree);
+  return *buildStream(stream, command_tree);
 }
 
+
+/*WTF????? Needs changing*/
 command_t
 read_command_stream (command_stream_t s)
 {
   command_t comm;
   /* if s is NULL or you are at end of stream return NULL */
-  if ((s == NULL) || (s->index >= s->commandNum)) { return NULL; }
+  if ((s == NULL) || (s.index >= s.commandNum)) { return NULL; }
   /*set the command to the command at the current index of the command stream*/
-  comm = s->commands[s->index];
-  s->index++; /*increment current index counter*/
+  comm = s.commands[s.index];
+  s.index++; /*increment current index counter*/
   return comm;
+}
+
+
+
+/****************************************
+ ** Implementation of wanted functions **
+ ****************************************/
+
+
+int isValidWordChar(char c) { /*checks if character is valid word character*/
+    return (isascii(c) && (isalum(c) || strchr("!%+,-./:@^_",c)));
+}
+
+
+/* returns 0 if an operator command was created, 1 if the only thing that happened was the command was pushed on the stack*/
+int addSimpleCommand(char *str) {
+      /*push str to command stack*/
+      command_t *c = createSimpleCommand(str);
+      commandPush(c);
+      /*peek at operator stack*/
+      if (opPeek() != -1 && commandSize() >= 2) {
+            /*create command with the current operator and 2 most current commands*/
+            command_t *prevCom1 = commandPop();
+            command_t *prevCom2 = commandPop();
+            command_t *c = createOperatorCommand(opPop(), prevCom1, prevCom2);
+            /*push command onto command stack*/
+            commandPush(c);
+            return 0;
+      }
+      return 1;
+}
+
+
+command_stream_t* buildStream(command_t* commandTree) {
+  /*get the size of the tree to allocate*/
+  commands_size = sizeOfTree(command_tree);
+  /*initialize stream*/
+  command_stream_t *stream = (command_stream_t*) checked_malloc(sizeof(struct command_stream)); /*allocate stream size*/
+  stream->commands = (command_t*) checked_malloc(commands_size*sizeof(command_t)); /*allocate commands with arbitrary command size (should be "robust")*/
+  stream->commandNum = 0;
+  stream->index = 0;
+  /* do code that builds the command stream from the tree using the operators */
+  return stream;
 }
