@@ -22,7 +22,6 @@ struct command_stream {
         int index; /*current index of commands*/
 };
 
-
 /************************************************************
  ** functions either implemented or want to be implemented **
  ************************************************************/
@@ -76,8 +75,8 @@ make_command_stream (int (*get_next_byte) (void *),
 
    /*builds the stack*/
 
-  stackOp *_opStack;
-  stackCom *_comStack;
+  stackOp *_opStack = (stackOp*) checked_malloc(sizeof(stackOp));
+  stackCom *_comStack = (stackCom*) checked_malloc(sizeof(stackCom));
 
   /*initialize stacks*/
   initStackOp(_opStack);
@@ -203,24 +202,11 @@ int isValidWordChar(char c) { /*checks if character is valid word character*/
     return (isascii(c) && (isalum(c) || strchr("!%+,-./:@^_",c)));
 }
 
-
-command_stream_t* buildStream(command_t* commandTree) {
-  /*get the size of the tree to allocate*/
-  commands_size = sizeOfTree(command_tree);
-  /*initialize stream*/
-  command_stream_t *stream = (command_stream_t*) checked_malloc(sizeof(struct command_stream)); /*allocate stream size*/
-  stream->commands = (command_t*) checked_malloc(commands_size*sizeof(command_t)); /*allocate commands with arbitrary command size (should be "robust")*/
-  stream->commandNum = 0;
-  stream->index = 0;
-  
-  /* do code that builds the command stream from the tree using the operators */
-  return stream;
-}
-
+/*danger!!!! seg fault!!! needs debugging*/
 command_t* createSimpleCommand(char *str) { /* don't forget to break words up! Also resize!!*/
       int size = 0, capacity = 10;
       command_t *com = (command_t*) checked_malloc(sizeof(command_t)); /* create new command */ 
-      com->word = (char**) checked_malloc(capacity*sizeof(char*)); /*allocate capacity amount of words*/
+      (*com)->u.word = (char**) checked_malloc(capacity*sizeof(char*)); /*allocate capacity amount of words*/
       char *tempStr = strtok(str, " "); /* get first token divided by " " */
       if (tempStr == NULL) { /* if no tokens */
               /*No spaces, so no new words*/
@@ -228,31 +214,35 @@ command_t* createSimpleCommand(char *str) { /* don't forget to break words up! A
        /*break up char into words*/
               do {
                       if (size < capacity) {
-                              com->word[size] = tempStr; /*add the string to the word array*/
+                              (*com)->u.word[size] = (char**) checked_malloc((strlen(tempStr) + 1) * sizeof(char*));
+                              /*add the string to the word array*/
+                              strcpy((*com)->u.word[size], tempStr); 
                               size++;
                       } else {
                               capacity *= 2; /*realloc double the capacity*/
-                              char **newWord = checked_realloc(capacity*(sizeof(char*)));
+                              char **newWord = (char**)checked_realloc((*com)->u.word, capacity*(sizeof(char*)));
                               if (newWord == NULL) { return NULL; } /*if realloc failed return NULL*/
                               else {
-                                     com->word = newWord; /*otherwise set the word array to the realloced array*/
+                                     (*com)->u.word = newWord; /*otherwise set the word array to the realloced array*/
                               }
 
-                              com->word[size] = tempStr; /*add the string to the word array*/
+                              (*com)->u.word[size] = (char**) checked_malloc((strlen(tempStr) + 1) * sizeof(char*)); 
+                              /*add the string to the word array*/
+                              strcpy((*com)->u.word[size], tempStr);
                               size++;
                       }
-              }  while ((tempStr = strtok(NULL, " ") != NULL); /*keep getting new words*/    
+              }  while ((tempStr = strtok(NULL, " ") != NULL)); /*keep getting new words*/    
               if (size < capacity) { /* try to add the NULL at the end*/
-                     com->word[size] = NULL;
+                     (*com)->u.word[size] = NULL;
               } else { /*if no more space*/
                      capacity += 1; /* realloc one more space just for the NULL */
-                     char **newWord = checked_realloc(capacity*(sizeof(char*)));
+                     char **newWord = checked_realloc((*com)->u.word, capacity*(sizeof(char*)));
                      if (newWord == NULL) { return NULL; }
                      else {
-                             com->word = newWord;
+                              (*com)->u.word = newWord;
                      }
 
-                     com->word[size] = NULL; /*set that space to NULL*/
+                     (*com)->u.word[size] = NULL; /*set that space to NULL*/
               } 
       }                
       return com;
@@ -261,17 +251,15 @@ command_t* createSimpleCommand(char *str) { /* don't forget to break words up! A
 /* appends a character to the string, and resizes if necessary 
  * str_size is the capacity 
  * returns 0 if it works, -1 if it doesn't */
-int append(int ch, char** str, int *str_size) {
+int append(int ch, char** str, int *str_size) { /*tested and works*/
       int size = strlen(*str); /*get the size of the string*/
-
-      /*TODO: Have to check if this code is correct!! */
       if ((size+1) < *str_size) { /*if the size (including the zero byte) is less than the capacity*/
               (*str)[size+1] = (*str)[size]; /*set the space after the previous zero byte to a zero byte*/
               (*str)[size] = ch; /*set the previous zero byte space to the character*/
       } else {
               /*resize the string*/
               *str_size *= 2; /*double the capacity*/
-              char *newStr = (char*)checked_realloc(*str_size * sizeof(char));
+              char *newStr = (char*)checked_realloc(*str,*str_size * sizeof(char));
               if (newStr == NULL) {return -1;}
               else {
                       *str = newStr;
@@ -281,5 +269,99 @@ int append(int ch, char** str, int *str_size) {
               (*str)[size] = ch; /*set the previous zero byte space to the character*/
       }
       return 0;
+}
+
+/* ************************* *
+ * Operation stack functions *
+ * ************************* */
+/*op stack functions tested and worked*/
+void initStackOp(stackOp *s) {
+        s->capacity = 10;
+        s->size = 0;
+        s->_operators = (int*) checked_malloc(s->capacity*sizeof(int));
+}
+void freeStackOp(stackOp *s) {
+        int i;
+        free(s->_operators);
+        free(s);
+}
+int opPop(stackOp *s) {
+        if (s->size == 0) return -1;
+        int op = s->_operators[s->size - 1];
+        s->_operators[s->size - 1] = 0;
+        s->size--;
+        return op;
+}
+int opPeek(stackOp *s) {
+        if (s->size == 0) return -1;
+        return s->_operators[s->size - 1];
+}        
+int opPush(stackOp *s, int op_type) {
+        if (s->size < s->capacity) {
+                s->_operators[s->size] = op_type;
+                s->size++;
+        } else {
+                s->capacity *= 2;
+                int *tempOp = (int*) checked_realloc(s->_operators, s->capacity*sizeof(int));
+                if (tempOp == NULL) {return -1;}
+                else {
+                        s->_operators = tempOp;
+                }
+                s->_operators[s->size] = op_type;
+                s->size++;
+        }
+        return 0;
+}
+
+
+/* *********************** *
+ * Command stack functions * 
+ * *********************** */
+
+/*command stack function still untested (difficult to test command_t pointers)*/
+
+/* initializes command stack */
+void initStackCom(stackCom *s) {
+        s->capacity = 10;
+        s->size = 0;
+        s->_commands = (command_t**) checked_malloc(s->capacity*sizeof(command_t*));
+}
+
+void freeStackCom(stackCom *s) {
+        int i;
+        for (i = 0; i < s->size; i++) {
+                free(s->_commands[i]);
+        }
+        free(s->_commands);
+        free(s);
+}
+
+command_t* commandPop(stackCom *s) {
+        if (s->size == 0) return NULL;
+        command_t *comm = s->_commands[s->size - 1];
+        s->_commands[s->size - 1] = NULL;
+        s->size--;
+        return comm;
+}
+command_t* commandPeek(stackCom *s) {
+        if (s->size == 0) return NULL;
+        return s->_commands[s->size - 1];
+}
+int commandPush(stackCom *s, command_t* c) {
+        if (s->size < s->capacity) {
+                s->_commands[s->size] = c;
+                s->size++;
+        } else {
+                s->capacity *= 2;
+                command_t **tempComm = (command_t**) checked_realloc(s->_commands, s->capacity*sizeof(command_t*));
+                if (tempComm == NULL) { return -1; }
+                else {
+                        s->_commands = tempComm;
+                }
+
+                s->_commands[s->size] = c;
+                s->size++;
+        }
+        return 0;
 }
 
