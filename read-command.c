@@ -33,7 +33,7 @@ int append(int ch, char** str, int *str_size);
 /*command functions*/
 int isValidWordChar(char c); /*implemented*/
 int precedence(int op_type);
-int dealWithOperator(int op_type);
+int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type);
 command_t* createSimpleCommand(char *str); /* don't forget to break words up! Also resize!!*/
 
 typedef struct _stackCom {
@@ -64,6 +64,8 @@ int opPush(stackOp *s, int op_type);
 int sizeOfTree(command_t* commandTree);
 command_stream_t buildStream(command_t* commandTree);
 
+const int END_SUBSHELL_COMMAND = SUBSHELL_COMMAND+1;
+const int LEFT_REDIRECT = SUBSHELL_COMMAND+2, RIGHT_REDIRECT = SUBSHELL_COMMAND+3;
 
 command_stream_t
 make_command_stream (int (*get_next_byte) (void *),
@@ -73,10 +75,19 @@ make_command_stream (int (*get_next_byte) (void *),
   command_stream_t stream;
 
    /*builds the stack*/
+
+  stackOp *_opStack;
+  stackCom *_comStack;
+
+  /*initialize stacks*/
+  initStackOp(_opStack);
+  initStackCom(_comStack);
+
   char prevChar = 0;
   int str_size;
   char *str;
-  robustAlloc(str, str_size);
+  str = (char*)checked_malloc(str_size*sizeof(char));
+
   /* read every byte */
   for (curByte = get_next_byte(get_next_byte_argument); curByte != EOF ; ) {
       if (isValidWordChar(curByte)) { /*if the character is a word character*/
@@ -86,19 +97,19 @@ make_command_stream (int (*get_next_byte) (void *),
           if (prevChar == '|') { /*if the previous character was '|' */
                /*its a pipeline*/
                command_t* com = createSimpleCommand(str);
-               commandPush(com);
-               dealWithOperator(PIPE_COMMAND);
+               commandPush(_comStack, com);
+               dealWithOperator(_opStack, _comStack, PIPE_COMMAND);
                prevChar = 0;
           }
           append(curByte, &str, &str_size); /*add the word to a temporary string (will resize if necessary)*/
-          /*is there a better way to append to string??*/
+          prevChar = 0; /*reset any previous operator chars since there is a correct word char after the operator*/
       } else if (strchr("&|();", c)) { /*if the character is an operator*/
           if (c == '&') {
               if (prevChar == '&') {
                   /*its a double and*/
                   command_t* com = createSimpleCommand(str);
-                  commandPush(com);
-                  dealWithOperator(AND_COMMAND);
+                  commandPush(_comStack, com);
+                  dealWithOperator(_opStack, _comStack, AND_COMMAND);
                   prevChar = 0;
               } else 
                   prevChar = '&';
@@ -106,18 +117,47 @@ make_command_stream (int (*get_next_byte) (void *),
               if (prevChar == '|') {
                   /*its a double or*/
                   command_t* com = createSimpleCommand(str);
-                  commandPush(com);
-                  dealWithOperator(OR_COMMAND);
+                  commandPush(_comStack, com);
+                  dealWithOperator(_opStack, _comStack, OR_COMMAND);
                   prevChar = 0;
               } else
                   prevChar = '|';
           } else if (prevChar == '&' || prevChar == '|')  { /* if the character isn't '&' or '|' but the previous character was*/
               /*print error*/
           } else if (c == ';') { /* if the character is the ';' character */
-                  addSimpleCommand(str);
-                  addOp(SEQUENCE_COMMAND);
+                  command_t* com = createSimpleCommand(str);
+                  commandPush(_comStack, com);
+                  dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND);
+                  prevChar = 0;
+          } else if (c == '(') {
+                  if (prevChar != 0) { /* if there is already another subshell operator or operator without a space in between */
+                          /*print error*/
+                  }
+                  command_t* com = createSimpleCommand(str);
+                  commandPush(_comStack, com);
+                  dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND);
+                  prevChar = '(';
+          } else if (c == ')') {
+                  if (prevChar != 0) { /*if there is already another subshell operator or operator without a space in between */
+                          /*print error*/
+                  }
+                  command_t* com = createSimpleCommand(str);
+                  commandPush(_comStack, com);
+                  dealWithOperator(_opStack, _comStack, END_SUBSHELL_COMMAND);
+                  prevChar = '(';
+          } else if (c == '<') {
+                  command_t* com = createSimpleCommand(str);
+                  commandPush(_comStack, com);
+                  dealWithOperator(_opStack, _comStack, LEFT_REDIRECT);
+                  prevChar = 0;
+          } else if (c == '>') {
+                  command_t com = createSimpleCommand(str);
+                  commandPush(_comStack, com);
+                  dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT);
                   prevChar = 0;
           }
+      } else if (c == '\n') { /*if c is a newline*/
+              /*add the command tree to the command stream*/
       } else {
           /*print error*/
       }
@@ -164,25 +204,6 @@ int isValidWordChar(char c) { /*checks if character is valid word character*/
 }
 
 
-/* returns 0 if an operator command was created, 1 if the only thing that happened was the command was pushed on the stack*/
-int addSimpleCommand(char *str) {
-      /*push str to command stack*/
-      command_t *c = createSimpleCommand(str);
-      commandPush(c);
-      /*peek at operator stack*/
-      if (opPeek() != -1 && commandSize() >= 2) {
-            /*create command with the current operator and 2 most current commands*/
-            command_t *prevCom1 = commandPop();
-            command_t *prevCom2 = commandPop();
-            command_t *c = createOperatorCommand(opPop(), prevCom1, prevCom2);
-            /*push command onto command stack*/
-            commandPush(c);
-            return 0;
-      }
-      return 1;
-}
-
-
 command_stream_t* buildStream(command_t* commandTree) {
   /*get the size of the tree to allocate*/
   commands_size = sizeOfTree(command_tree);
@@ -226,7 +247,7 @@ command_t* createSimpleCommand(char *str) { /* don't forget to break words up! A
               } else { /*if no more space*/
                      capacity += 1; /* realloc one more space just for the NULL */
                      char **newWord = checked_realloc(capacity*(sizeof(char*)));
-                     if (newWord == NULL) { return -1; }
+                     if (newWord == NULL) { return NULL; }
                      else {
                              com->word = newWord;
                      }
@@ -235,5 +256,30 @@ command_t* createSimpleCommand(char *str) { /* don't forget to break words up! A
               } 
       }                
       return com;
+}
+
+/* appends a character to the string, and resizes if necessary 
+ * str_size is the capacity 
+ * returns 0 if it works, -1 if it doesn't */
+int append(int ch, char** str, int *str_size) {
+      int size = strlen(*str); /*get the size of the string*/
+
+      /*TODO: Have to check if this code is correct!! */
+      if ((size+1) < *str_size) { /*if the size (including the zero byte) is less than the capacity*/
+              (*str)[size+1] = (*str)[size]; /*set the space after the previous zero byte to a zero byte*/
+              (*str)[size] = ch; /*set the previous zero byte space to the character*/
+      } else {
+              /*resize the string*/
+              *str_size *= 2; /*double the capacity*/
+              char *newStr = (char*)checked_realloc(*str_size * sizeof(char));
+              if (newStr == NULL) {return -1;}
+              else {
+                      *str = newStr;
+              }
+              
+              (*str)[size+1] = (*str)[size]; /*set the space after the previous zero byte to a zero byte*/
+              (*str)[size] = ch; /*set the previous zero byte space to the character*/
+      }
+      return 0;
 }
 
