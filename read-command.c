@@ -191,6 +191,49 @@ command_stream_t* buildStream(command_t* commandTree) {
   stream->commands = (command_t*) checked_malloc(commands_size*sizeof(command_t)); /*allocate commands with arbitrary command size (should be "robust")*/
   stream->commandNum = 0;
   stream->index = 0;
+  
   /* do code that builds the command stream from the tree using the operators */
   return stream;
 }
+
+command_t* createSimpleCommand(char *str) { /* don't forget to break words up! Also resize!!*/
+      int size = 0, capacity = 10;
+      command_t *com = (command_t*) checked_malloc(sizeof(command_t)); /* create new command */ 
+      com->word = (char**) checked_malloc(capacity*sizeof(char*)); /*allocate capacity amount of words*/
+      char *tempStr = strtok(str, " "); /* get first token divided by " " */
+      if (tempStr == NULL) { /* if no tokens */
+              /*No spaces, so no new words*/
+      } else {
+       /*break up char into words*/
+              do {
+                      if (size < capacity) {
+                              com->word[size] = tempStr; /*add the string to the word array*/
+                              size++;
+                      } else {
+                              capacity *= 2; /*realloc double the capacity*/
+                              char **newWord = checked_realloc(capacity*(sizeof(char*)));
+                              if (newWord == NULL) { return NULL; } /*if realloc failed return NULL*/
+                              else {
+                                     com->word = newWord; /*otherwise set the word array to the realloced array*/
+                              }
+
+                              com->word[size] = tempStr; /*add the string to the word array*/
+                              size++;
+                      }
+              }  while ((tempStr = strtok(NULL, " ") != NULL); /*keep getting new words*/    
+              if (size < capacity) { /* try to add the NULL at the end*/
+                     com->word[size] = NULL;
+              } else { /*if no more space*/
+                     capacity += 1; /* realloc one more space just for the NULL */
+                     char **newWord = checked_realloc(capacity*(sizeof(char*)));
+                     if (newWord == NULL) { return -1; }
+                     else {
+                             com->word = newWord;
+                     }
+
+                     com->word[size] = NULL; /*set that space to NULL*/
+              } 
+      }                
+      return com;
+}
+
