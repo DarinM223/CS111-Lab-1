@@ -18,8 +18,8 @@
    complete the incomplete type declaration in command.h.  */
 struct command_stream {
         command_t* commands; /*array of commands*/
-        int commandNum; /*number of commands*/
-        int index; /*current index of commands*/
+        int size; /*current size*/
+        int capacity; /*current index of commands*/
 };
 
 /************************************************************
@@ -33,12 +33,15 @@ int append(int ch, char** str, int *str_size);
 int isValidWordChar(char c); /*implemented*/
 int precedence(int op_type);
 int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type);
+int createCommandTree(stackOp* op_stack, stackCom* com_stack, int com_type);
+char** breakIntoWords(char* str);
 command_t* createSimpleCommand(char *str); /* don't forget to break words up! Also resize!!*/
 
 typedef struct _stackCom {
     int capacity;
     int size;
     command_t** _commands;
+    int index;
 } stackCom;
 /*command stack functions*/
 void freeStackCom(stackCom *s);
@@ -59,10 +62,6 @@ int opPop(stackOp *s);
 int opPeek(stackOp *s);
 int opPush(stackOp *s, int op_type);
 
-/*command tree functions*/
-int sizeOfTree(command_t* commandTree);
-command_stream_t buildStream(command_t* commandTree);
-
 const int END_SUBSHELL_COMMAND = SUBSHELL_COMMAND+1;
 const int LEFT_REDIRECT = SUBSHELL_COMMAND+2, RIGHT_REDIRECT = SUBSHELL_COMMAND+3;
 
@@ -72,6 +71,13 @@ make_command_stream (int (*get_next_byte) (void *),
 {
   int curByte;
   command_stream_t stream;
+
+  /*initialize stream*/
+  stream->capacity = 10;
+  stream->size = 0;
+  stream->index = 0;
+  stream = (command_stream_t) checked_malloc(sizeof(struct command_stream)); /*allocate stream size*/
+  stream->commands = (command_t*) checked_malloc(stream->capacity*sizeof(command_t)); /*allocate commands with arbitrary command size (should be "robust")*/
 
    /*builds the stack*/
 
@@ -150,31 +156,43 @@ make_command_stream (int (*get_next_byte) (void *),
                   dealWithOperator(_opStack, _comStack, LEFT_REDIRECT);
                   prevChar = 0;
           } else if (c == '>') {
-                  command_t com = createSimpleCommand(str);
+                  command_t* com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT);
                   prevChar = 0;
           }
       } else if (c == '\n') { /*if c is a newline*/
               /*add the command tree to the command stream*/
+              /*add the last command*/
+              command_t* com = createSimpleCommand(str);
+              commandPush(_comStack, com);
+              int __op;
+              while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
+                      createCommandTree(_opStack, _comStack, __op); /*create the tree from the stacks*/
+              }
+              command_t *command_tree = commandPop(_comStack);
+              /*add command tree to stream*/
+
+              if (stream->size < stream->capacity) {
+                      stream->_commands[stream->size] = *command_tree;
+                      stream->size++;
+              } else {
+                      stream->capacity *= 2;
+                      command_t* tempComStream = (command_t*) checked_realloc(stream->_commands, stream->capacity * sizeof(command_t));
+                      if (tempComStream == NULL) { /*print error*/ }
+                      else {
+                              stream->_commands = tempComStream;
+                      }
+
+                      stream->_commands[stream->size] = *command_tree;
+                      stream->size++;
+              }
       } else {
           /*print error*/
       }
   }
-  /*get the command tree*/
-  command_t *command_tree = commandPop();
-  return buildStream(command_tree);
 
 
-  /*get the size of the tree to allocate*/
-  commands_size = sizeOfTree(command_tree);
-  /*initialize stream*/
-  stream = (command_stream_t) checked_malloc(sizeof(struct command_stream)); /*allocate stream size*/
-  stream->commands = (command_t*) checked_malloc(commands_size*sizeof(command_t)); /*allocate commands with arbitrary command size (should be "robust")*/
-  stream->commandNum = 0;
-  stream->index = 0;
-  /*build the stream from the command tree*/
-  return *buildStream(stream, command_tree);
 }
 
 
@@ -184,10 +202,10 @@ read_command_stream (command_stream_t s)
 {
   command_t comm;
   /* if s is NULL or you are at end of stream return NULL */
-  if ((s == NULL) || (s.index >= s.commandNum)) { return NULL; }
+  if ((s == NULL) || (s->index >= s->size)) { return NULL; }
   /*set the command to the command at the current index of the command stream*/
-  comm = s.commands[s.index];
-  s.index++; /*increment current index counter*/
+  comm = s->_commands[s->index];
+  s->index++; /*increment current index counter*/
   return comm;
 }
 
@@ -202,49 +220,71 @@ int isValidWordChar(char c) { /*checks if character is valid word character*/
     return (isascii(c) && (isalum(c) || strchr("!%+,-./:@^_",c)));
 }
 
-/*danger!!!! seg fault!!! needs debugging*/
+/*breaks a string into an array of strings ending in NULL
+ *if its an empty string it returns an empty array of strings
+ *if the allocation failed then it returns NULL
+ * */
+/*tested and works*/
+char** breakIntoWords(char* str) {
+        int arr_capacity = 10;
+        int arr_size = 0;
+        char **strArr = (char**)checked_malloc(arr_capacity*sizeof(char*));
+        if (strlen(str) == 0) {
+                strArr[0] = NULL;
+                return strArr;
+        }
+        int str_size = 10;
+        int modified_str_size = str_size;
+        char *tempStr = (char*)checked_malloc(str_size*sizeof(char));
+        int i = 0;
+        while (1) {
+                if (str[i] == ' ' || str[i] == '\0') {
+                        /*add tempStr to the array of c strings*/
+                        if (arr_size < arr_capacity) {
+                                strArr[arr_size] = (char*)checked_malloc((strlen(tempStr)+1) * sizeof(char));
+                                strcpy(strArr[arr_size], tempStr);
+                                arr_size++;
+                        } else {
+                                arr_capacity *= 2;
+                                char **tempStrArr = (char**)checked_realloc(strArr, arr_capacity*sizeof(char*));
+                                if (tempStrArr == NULL) {return NULL;}
+                                else {
+                                        strArr = tempStrArr;
+                                }
+                                strArr[arr_size] = (char*) checked_malloc((strlen(tempStr)+1) * sizeof(char));
+                                strcpy(strArr[arr_size], tempStr);
+                                arr_size++;
+                        }
+                        /*reset tempStr*/
+                        free(tempStr);
+                        tempStr = NULL;
+                        if (str[i] == '\0') break;
+                        tempStr = (char*)checked_malloc(str_size*sizeof(char));
+                        modified_str_size = str_size;
+                } else {
+                        /*append the character to the temporary string*/
+                        append(str[i], &tempStr, &modified_str_size);
+                }
+                i++;
+        }
+        /*try to add the NULL at the end*/
+        if (arr_size < arr_capacity) {
+                strArr[arr_size] = NULL;
+        } else {
+                arr_capacity += 1;
+                char **tempStrArr = (char**) checked_realloc(strArr, arr_capacity*sizeof(char*));
+                if (tempStrArr == NULL) {return NULL;}
+                else {
+                        strArr = tempStrArr;
+                }
+                strArr[arr_size] = NULL;
+        }
+        return strArr;
+}
+/*untested (difficult to test command_t pointers)*/
 command_t* createSimpleCommand(char *str) { /* don't forget to break words up! Also resize!!*/
-      int size = 0, capacity = 10;
       command_t *com = (command_t*) checked_malloc(sizeof(command_t)); /* create new command */ 
-      (*com)->u.word = (char**) checked_malloc(capacity*sizeof(char*)); /*allocate capacity amount of words*/
-      char *tempStr = strtok(str, " "); /* get first token divided by " " */
-      if (tempStr == NULL) { /* if no tokens */
-              /*No spaces, so no new words*/
-      } else {
-       /*break up char into words*/
-              do {
-                      if (size < capacity) {
-                              (*com)->u.word[size] = (char**) checked_malloc((strlen(tempStr) + 1) * sizeof(char*));
-                              /*add the string to the word array*/
-                              strcpy((*com)->u.word[size], tempStr); 
-                              size++;
-                      } else {
-                              capacity *= 2; /*realloc double the capacity*/
-                              char **newWord = (char**)checked_realloc((*com)->u.word, capacity*(sizeof(char*)));
-                              if (newWord == NULL) { return NULL; } /*if realloc failed return NULL*/
-                              else {
-                                     (*com)->u.word = newWord; /*otherwise set the word array to the realloced array*/
-                              }
-
-                              (*com)->u.word[size] = (char**) checked_malloc((strlen(tempStr) + 1) * sizeof(char*)); 
-                              /*add the string to the word array*/
-                              strcpy((*com)->u.word[size], tempStr);
-                              size++;
-                      }
-              }  while ((tempStr = strtok(NULL, " ") != NULL)); /*keep getting new words*/    
-              if (size < capacity) { /* try to add the NULL at the end*/
-                     (*com)->u.word[size] = NULL;
-              } else { /*if no more space*/
-                     capacity += 1; /* realloc one more space just for the NULL */
-                     char **newWord = checked_realloc((*com)->u.word, capacity*(sizeof(char*)));
-                     if (newWord == NULL) { return NULL; }
-                     else {
-                              (*com)->u.word = newWord;
-                     }
-
-                     (*com)->u.word[size] = NULL; /*set that space to NULL*/
-              } 
-      }                
+      (*com)->u.word = breakIntoWords(str);
       return com;
 }
 
@@ -364,4 +404,6 @@ int commandPush(stackCom *s, command_t* c) {
         }
         return 0;
 }
+
+
 
