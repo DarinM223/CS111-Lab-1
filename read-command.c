@@ -77,7 +77,7 @@ make_command_stream (int (*get_next_byte) (void *),
   stream->size = 0;
   stream->index = 0;
   stream = (command_stream_t) checked_malloc(sizeof(struct command_stream)); /*allocate stream size*/
-  stream->commands = (command_t*) checked_malloc(stream->capacity*sizeof(command)); /*allocate commands with arbitrary command size (should be "robust")*/
+  stream->commands = (command_t*) checked_malloc(stream->capacity*sizeof(command_t)); /*allocate commands with arbitrary command size (should be "robust")*/
 
    /*builds the stack*/
 
