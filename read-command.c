@@ -28,27 +28,27 @@ struct command_stream {
  ************************************************************/
 
 /*string functions*/
-int append(int ch, char** str, int *str_size);
+int append(int ch, char** str, int *str_size); /*works*/
 
 /*command functions*/
 int isValidWordChar(char c); /*implemented*/
-int precedence(int op_type);
+int precedence(int op_type); 
 int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type);
 int createCommandTree(stackOp* op_stack, stackCom* com_stack, int com_type);
-char** breakIntoWords(char* str);
-command_t* createSimpleCommand(char *str); /* don't forget to break words up! Also resize!!*/
+char** breakIntoWords(char* str); /*works*/
+command_t createSimpleCommand(char *str); /* don't forget to break words up! Also resize!!*/ /*works*/
 
 typedef struct _stackCom {
     int capacity;
     int size;
-    command_t** _commands;
+    command_t* _commands;
 } stackCom;
 /*command stack functions*/
-void freeStackCom(stackCom *s);
-void initStackCom(stackCom *s);
-command_t* commandPop(stackCom *s);
-command_t* commandPeek(stackCom *s);
-int commandPush(stackCom *s, command_t *c);
+void freeStackCom(stackCom *s); /*works*/
+void initStackCom(stackCom *s);/*works*/
+command_t commandPop(stackCom *s);/*works*/
+command_t commandPeek(stackCom *s); /*works*/
+int commandPush(stackCom *s, command_t c);/*works*/
 
 typedef struct _stackOp {
     int capacity;
@@ -56,11 +56,11 @@ typedef struct _stackOp {
     int* _operators;
 } stackOp;
 /*operator stack functions*/
-void freeStackOp(stackOp *s);
-void initStackOp(stackOp *s);
-int opPop(stackOp *s);
-int opPeek(stackOp *s);
-int opPush(stackOp *s, int op_type);
+void freeStackOp(stackOp *s); /*works*/
+void initStackOp(stackOp *s); /*works*/
+int opPop(stackOp *s); /*works*/
+int opPeek(stackOp *s); /*works*/
+int opPush(stackOp *s, int op_type);/*works*/
 
 const int END_SUBSHELL_COMMAND = SUBSHELL_COMMAND+1;
 const int LEFT_REDIRECT = SUBSHELL_COMMAND+2, RIGHT_REDIRECT = SUBSHELL_COMMAND+3;
@@ -77,7 +77,7 @@ make_command_stream (int (*get_next_byte) (void *),
   stream->size = 0;
   stream->index = 0;
   stream = (command_stream_t) checked_malloc(sizeof(struct command_stream)); /*allocate stream size*/
-  stream->commands = (command_t*) checked_malloc(stream->capacity*sizeof(command_t)); /*allocate commands with arbitrary command size (should be "robust")*/
+  stream->commands = (command_t*) checked_malloc(stream->capacity*sizeof(command)); /*allocate commands with arbitrary command size (should be "robust")*/
 
    /*builds the stack*/
 
@@ -101,7 +101,7 @@ make_command_stream (int (*get_next_byte) (void *),
           }
           if (prevChar == '|') { /*if the previous character was '|' */
                /*its a pipeline*/
-               command_t* com = createSimpleCommand(str);
+               command_t com = createSimpleCommand(str);
                commandPush(_comStack, com);
                dealWithOperator(_opStack, _comStack, PIPE_COMMAND);
                prevChar = 0;
@@ -112,7 +112,7 @@ make_command_stream (int (*get_next_byte) (void *),
           if (c == '&') {
               if (prevChar == '&') {
                   /*its a double and*/
-                  command_t* com = createSimpleCommand(str);
+                  command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, AND_COMMAND);
                   prevChar = 0;
@@ -121,7 +121,7 @@ make_command_stream (int (*get_next_byte) (void *),
           }  else if (c == '|') {
               if (prevChar == '|') {
                   /*its a double or*/
-                  command_t* com = createSimpleCommand(str);
+                  command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, OR_COMMAND);
                   prevChar = 0;
@@ -130,7 +130,7 @@ make_command_stream (int (*get_next_byte) (void *),
           } else if (prevChar == '&' || prevChar == '|')  { /* if the character isn't '&' or '|' but the previous character was*/
               /*print error*/
           } else if (c == ';') { /* if the character is the ';' character */
-                  command_t* com = createSimpleCommand(str);
+                  command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND);
                   prevChar = 0;
@@ -138,7 +138,7 @@ make_command_stream (int (*get_next_byte) (void *),
                   if (prevChar != 0) { /* if there is already another subshell operator or operator without a space in between */
                           /*print error*/
                   }
-                  command_t* com = createSimpleCommand(str);
+                  command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND);
                   prevChar = '(';
@@ -146,17 +146,17 @@ make_command_stream (int (*get_next_byte) (void *),
                   if (prevChar != 0) { /*if there is already another subshell operator or operator without a space in between */
                           /*print error*/
                   }
-                  command_t* com = createSimpleCommand(str);
+                  command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, END_SUBSHELL_COMMAND);
                   prevChar = '(';
           } else if (c == '<') {
-                  command_t* com = createSimpleCommand(str);
+                  command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, LEFT_REDIRECT);
                   prevChar = 0;
           } else if (c == '>') {
-                  command_t* com = createSimpleCommand(str);
+                  command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT);
                   prevChar = 0;
@@ -164,17 +164,17 @@ make_command_stream (int (*get_next_byte) (void *),
       } else if (c == '\n') { /*if c is a newline*/
               /*add the command tree to the command stream*/
               /*add the last command*/
-              command_t* com = createSimpleCommand(str);
+              command_t com = createSimpleCommand(str);
               commandPush(_comStack, com);
               int __op;
               while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
                       createCommandTree(_opStack, _comStack, __op); /*create the tree from the stacks*/
               }
-              command_t *command_tree = commandPop(_comStack);
+              command_t command_tree = commandPop(_comStack);
               /*add command tree to stream*/
 
               if (stream->size < stream->capacity) {
-                      stream->_commands[stream->size] = *command_tree;
+                      stream->_commands[stream->size] = command_tree;
                       stream->size++;
               } else {
                       stream->capacity *= 2;
@@ -184,7 +184,7 @@ make_command_stream (int (*get_next_byte) (void *),
                               stream->_commands = tempComStream;
                       }
 
-                      stream->_commands[stream->size] = *command_tree;
+                      stream->_commands[stream->size] = command_tree;
                       stream->size++;
               }
       } else {
@@ -282,9 +282,11 @@ char** breakIntoWords(char* str) {
         return strArr;
 }
 /*untested (difficult to test command_t pointers)*/
-command_t* createSimpleCommand(char *str) { /* don't forget to break words up! Also resize!!*/
-      command_t *com = (command_t*) checked_malloc(sizeof(command_t)); /* create new command */ 
-      (*com)->u.word = breakIntoWords(str);
+command_t createSimpleCommand(char *str) { /* don't forget to break words up! Also resize!!*/
+      command_t com = checked_malloc(sizeof(struct command));
+      com->type = SIMPLE_COMMAND;
+      char **a = breakIntoWords(str);
+      com->u.word = a;
       return com;
 }
 
@@ -364,7 +366,7 @@ int opPush(stackOp *s, int op_type) {
 void initStackCom(stackCom *s) {
         s->capacity = 10;
         s->size = 0;
-        s->_commands = (command_t**) checked_malloc(s->capacity*sizeof(command_t*));
+        s->_commands = (command_t*) checked_malloc(s->capacity*sizeof(command_t));
 }
 
 void freeStackCom(stackCom *s) {
@@ -376,24 +378,24 @@ void freeStackCom(stackCom *s) {
         free(s);
 }
 
-command_t* commandPop(stackCom *s) {
+command_t commandPop(stackCom *s) {
         if (s->size == 0) return NULL;
-        command_t *comm = s->_commands[s->size - 1];
+        command_t comm = s->_commands[s->size - 1];
         s->_commands[s->size - 1] = NULL;
         s->size--;
         return comm;
 }
-command_t* commandPeek(stackCom *s) {
+command_t commandPeek(stackCom *s) {
         if (s->size == 0) return NULL;
         return s->_commands[s->size - 1];
 }
-int commandPush(stackCom *s, command_t* c) {
+int commandPush(stackCom *s, command_t c) {
         if (s->size < s->capacity) {
                 s->_commands[s->size] = c;
                 s->size++;
         } else {
                 s->capacity *= 2;
-                command_t **tempComm = (command_t**) checked_realloc(s->_commands, s->capacity*sizeof(command_t*));
+                command_t *tempComm = (command_t*) checked_realloc(s->_commands, s->capacity*sizeof(command_t));
                 if (tempComm == NULL) { return -1; }
                 else {
                         s->_commands = tempComm;
