@@ -32,6 +32,7 @@ int append(int ch, char** str, int *str_size); /*works*/
 
 /*command functions*/
 int isValidWordChar(char c); /*implemented*/
+int isValidWord(char *c); /*works*/
 int precedence(int op_type); 
 int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type);
 int createCommandTree(stackOp* op_stack, stackCom* com_stack, int com_type);
@@ -92,10 +93,11 @@ make_command_stream (int (*get_next_byte) (void *),
   int str_size;
   char *str;
   str = (char*)checked_malloc(str_size*sizeof(char));
-
+  int commentFlag = 0;
   /* read every byte */
   for (curByte = get_next_byte(get_next_byte_argument); curByte != EOF ; ) {
       if (isValidWordChar(curByte)) { /*if the character is a word character*/
+          if (commentFlag != 0) continue; /*if a comment, ignore everything*/ 
           if (prevChar == '&') { /*if the previous character was '&' */
               /*print error*/
           }
@@ -109,6 +111,7 @@ make_command_stream (int (*get_next_byte) (void *),
           append(curByte, &str, &str_size); /*add the word to a temporary string (will resize if necessary)*/
           prevChar = 0; /*reset any previous operator chars since there is a correct word char after the operator*/
       } else if (strchr("&|();", c)) { /*if the character is an operator*/
+          if (commentFlag != 0) continue; /*if a comment, ignore everything*/
           if (c == '&') {
               if (prevChar == '&') {
                   /*its a double and*/
@@ -161,7 +164,9 @@ make_command_stream (int (*get_next_byte) (void *),
                   dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT);
                   prevChar = 0;
           }
-      } else if (c == '\n') { /*if c is a newline*/
+      } else if (c == '\n' || c == '#') { /*if c is a newline or comment*/
+              if (c == '#') { commentFlag = 1; } /*if c is a comment set the flag*/
+              if (c == '\n' && commentFlag != 0) { commentFlag = 0; } /*if comment flag is set and the character is a newline, reset comment flag*/
               /*add the command tree to the command stream*/
               /*add the last command*/
               command_t com = createSimpleCommand(str);
@@ -219,6 +224,17 @@ read_command_stream (command_stream_t s)
 int isValidWordChar(char c) { /*checks if character is valid word character*/
     return (isascii(c) && (isalum(c) || strchr("!%+,-./:@^_",c)));
 }
+/*returns 0 if not valid, 1 if valid*/
+int isValidWord(char *c) {
+       if (strlen(c) == 0) return 0;
+       int i;
+       for (i = 0; i < strlen(c); i++) {
+               if (!isValidWordChar(c[i])) {
+                     return 0;
+               } 
+       }
+       return 1;
+}
 
 /*breaks a string into an array of strings ending in NULL
  *if its an empty string it returns an empty array of strings
@@ -236,30 +252,34 @@ char** breakIntoWords(char* str) {
         int str_size = 10;
         int modified_str_size = str_size;
         char *tempStr = (char*)checked_malloc(str_size*sizeof(char));
+        tempStr[0] = '\0';
         int i = 0;
         while (1) {
                 if (str[i] == ' ' || str[i] == '\0') {
-                        /*add tempStr to the array of c strings*/
-                        if (arr_size < arr_capacity) {
-                                strArr[arr_size] = (char*)checked_malloc((strlen(tempStr)+1) * sizeof(char));
-                                strcpy(strArr[arr_size], tempStr);
-                                arr_size++;
-                        } else {
-                                arr_capacity *= 2;
-                                char **tempStrArr = (char**)checked_realloc(strArr, arr_capacity*sizeof(char*));
-                                if (tempStrArr == NULL) {return NULL;}
-                                else {
-                                        strArr = tempStrArr;
+                        if (isValidWord(tempStr) != 0) { /*add to strings only if it is valid*/
+                                /*add tempStr to the array of c strings*/
+                                if (arr_size < arr_capacity) {
+                                        strArr[arr_size] = (char*)checked_malloc((strlen(tempStr)+1) * sizeof(char));
+                                        strcpy(strArr[arr_size], tempStr);
+                                        arr_size++;
+                                } else {
+                                        arr_capacity *= 2;
+                                        char **tempStrArr = (char**)checked_realloc(strArr, arr_capacity*sizeof(char*));
+                                        if (tempStrArr == NULL) {return NULL;}
+                                        else {
+                                                strArr = tempStrArr;
+                                        }
+                                        strArr[arr_size] = (char*) checked_malloc((strlen(tempStr)+1) * sizeof(char));
+                                        strcpy(strArr[arr_size], tempStr);
+                                        arr_size++;
                                 }
-                                strArr[arr_size] = (char*) checked_malloc((strlen(tempStr)+1) * sizeof(char));
-                                strcpy(strArr[arr_size], tempStr);
-                                arr_size++;
                         }
                         /*reset tempStr*/
                         free(tempStr);
                         tempStr = NULL;
                         if (str[i] == '\0') break;
                         tempStr = (char*)checked_malloc(str_size*sizeof(char));
+                        tempStr[0] = '\0';
                         modified_str_size = str_size;
                 } else {
                         /*append the character to the temporary string*/
@@ -267,6 +287,8 @@ char** breakIntoWords(char* str) {
                 }
                 i++;
         }
+        free(tempStr);
+        tempStr = NULL;
         /*try to add the NULL at the end*/
         if (arr_size < arr_capacity) {
                 strArr[arr_size] = NULL;
@@ -281,7 +303,7 @@ char** breakIntoWords(char* str) {
         }
         return strArr;
 }
-/*untested (difficult to test command_t pointers)*/
+/*tested and works*/
 command_t createSimpleCommand(char *str) { /* don't forget to break words up! Also resize!!*/
       command_t com = checked_malloc(sizeof(struct command));
       com->type = SIMPLE_COMMAND;
