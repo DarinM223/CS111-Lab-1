@@ -19,7 +19,8 @@
 struct command_stream {
         command_t* commands; /*array of commands*/
         int size; /*current size*/
-        int capacity; /*current index of commands*/
+        int capacity; /*current capacity*/
+        int index;
 };
 
 /************************************************************
@@ -41,7 +42,6 @@ typedef struct _stackCom {
     int capacity;
     int size;
     command_t** _commands;
-    int index;
 } stackCom;
 /*command stack functions*/
 void freeStackCom(stackCom *s);
