@@ -90,14 +90,18 @@ make_command_stream (int (*get_next_byte) (void *),
   initStackCom(_comStack);
 
   char prevChar = 0;
-  int str_size;
+  int str_size = 10;
   char *str;
   str = (char*)checked_malloc(str_size*sizeof(char));
-  int commentFlag = 0;
+  int subshellFlag = 0;
+  int opFlag = -1;
+  /*if op flag is set
+   * if a word char or a beginning subshell is next readed char then reset op flag
+   */
   /* read every byte */
   for (curByte = get_next_byte(get_next_byte_argument); curByte != EOF ; ) {
-      if (isValidWordChar(curByte)) { /*if the character is a word character*/
-          if (commentFlag != 0) continue; /*if a comment, ignore everything*/ 
+      if (isValidWordChar(curByte) || strchr(" \t", curByte)) { /*if the character is a word character or space*/
+          if (isValidWordChar(curByte) && opFlag != -1) opFlag = -1; /*if op flag is set and the char is a word char unset the flag*/ 
           if (prevChar == '&') { /*if the previous character was '&' */
               /*print error*/
           }
@@ -106,18 +110,24 @@ make_command_stream (int (*get_next_byte) (void *),
                command_t com = createSimpleCommand(str);
                commandPush(_comStack, com);
                dealWithOperator(_opStack, _comStack, PIPE_COMMAND);
+               opFlag = PIPE_COMMAND;
                prevChar = 0;
           }
           append(curByte, &str, &str_size); /*add the word to a temporary string (will resize if necessary)*/
           prevChar = 0; /*reset any previous operator chars since there is a correct word char after the operator*/
-      } else if (strchr("&|();", c)) { /*if the character is an operator*/
-          if (commentFlag != 0) continue; /*if a comment, ignore everything*/
+      } else if (strchr("&|();<>", c)) { /*if the character is an operator*/
+          if (opFlag != -1 && curByte == '(') { /*if the op flag is set and the char is '(' unset the flag*/
+                  opFlag = -1;
+          } else {/*if there is an operator flag and the current char is a operator that is not '('*/
+                  /*print error*/
+          }
           if (c == '&') {
               if (prevChar == '&') {
                   /*its a double and*/
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, AND_COMMAND);
+                  opFlag = AND_COMMAND;
                   prevChar = 0;
               } else 
                   prevChar = '&';
@@ -127,70 +137,94 @@ make_command_stream (int (*get_next_byte) (void *),
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, OR_COMMAND);
+                  opFlag = OR_COMMAND;
                   prevChar = 0;
               } else
                   prevChar = '|';
           } else if (prevChar == '&' || prevChar == '|')  { /* if the character isn't '&' or '|' but the previous character was*/
               /*print error*/
-          } else if (c == ';') { /* if the character is the ';' character */
+          } else if (curByte == ';') { /* if the character is the ';' character */
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND);
+                  opFlag = SEQUENCE_COMMAND;
                   prevChar = 0;
-          } else if (c == '(') {
-                  if (prevChar != 0) { /* if there is already another subshell operator or operator without a space in between */
+          } else if (curByte == '(') {
+                  if (opFlag == '<' || opFlag == '>') { /*if the operator flag is < or > */
+                          /*print error*/
+                  } else if (opFlag == -1) { /*if the operator flag hasn't been set*/
                           /*print error*/
                   }
-                  command_t com = createSimpleCommand(str);
-                  commandPush(_comStack, com);
+                  /*DO NOT ADD THE LAST COMMAND*/
+                  /*Only things possible are:
+                   * a op (blah)
+                   * (blah) */
+                  /*command_t com = createSimpleCommand(str);*/
+                  /*commandPush(_comStack, com);*/
                   dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND);
-                  prevChar = '(';
-          } else if (c == ')') {
-                  if (prevChar != 0) { /*if there is already another subshell operator or operator without a space in between */
-                          /*print error*/
-                  }
+                  subshellFlag++; /*increase number of subshells*/
+                  prevChar = 0;
+          } else if (curByte == ')') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, END_SUBSHELL_COMMAND);
-                  prevChar = '(';
-          } else if (c == '<') {
+                  subshellFlag--;
+                  prevChar = 0;
+          } else if (curByte == '<') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, LEFT_REDIRECT);
+                  opFlag = LEFT_REDIRECT;
                   prevChar = 0;
-          } else if (c == '>') {
+          } else if (curByte == '>') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT);
+                  opFlag = RIGHT_REDIRECT;
                   prevChar = 0;
           }
-      } else if (c == '\n' || c == '#') { /*if c is a newline or comment*/
-              if (c == '#') { commentFlag = 1; } /*if c is a comment set the flag*/
-              if (c == '\n' && commentFlag != 0) { commentFlag = 0; } /*if comment flag is set and the character is a newline, reset comment flag*/
-              /*add the command tree to the command stream*/
-              /*add the last command*/
-              command_t com = createSimpleCommand(str);
-              commandPush(_comStack, com);
-              int __op;
-              while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
-                      createCommandTree(_opStack, _comStack, __op); /*create the tree from the stacks*/
+      } else if (curByte == '\n' || curByte == '#') { /*if c is a newline or comment*/
+              if (curByte == '#') { /*if c is a comment loop then ignore until a newline is reached*/
+                     do {
+                             curByte = get_next_byte(get_next_byte_argument);
+                     } while (curByte != '\n' && curByte != EOF);
               }
-              command_t command_tree = commandPop(_comStack);
-              /*add command tree to stream*/
+              /*act as if the character is a newline*/
+              if (opFlag == -1 && subshellFlag == 0) { /*if there is no operator flag and the number of subshells is zero*/
+                  /*add the command tree to the command stream*/
+                  /*add the last command*/
+                  command_t com = createSimpleCommand(str);
+                  commandPush(_comStack, com);
+                  int __op;
+                  while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
+                        createCommandTree(_opStack, _comStack, __op); /*create the tree from the stacks*/
+                  }
+                  command_t command_tree = commandPop(_comStack);
+                  /*add command tree to stream*/
 
-              if (stream->size < stream->capacity) {
-                      stream->_commands[stream->size] = command_tree;
-                      stream->size++;
-              } else {
-                      stream->capacity *= 2;
-                      command_t* tempComStream = (command_t*) checked_realloc(stream->_commands, stream->capacity * sizeof(command_t));
-                      if (tempComStream == NULL) { /*print error*/ }
-                      else {
+                  if (stream->size < stream->capacity) {
+                        stream->_commands[stream->size] = command_tree;
+                        stream->size++;
+                  } else {
+                        stream->capacity *= 2;
+                        command_t* tempComStream = (command_t*) checked_realloc(stream->_commands, stream->capacity * sizeof(command_t));
+                        if (tempComStream == NULL) { /*print error*/ }
+                        else {
                               stream->_commands = tempComStream;
-                      }
+                        }
 
-                      stream->_commands[stream->size] = command_tree;
-                      stream->size++;
+                        stream->_commands[stream->size] = command_tree;
+                        stream->size++;
+                  }
+              } else if (subshellFlag != 0) { /*if there is at least one subshell*/
+                  /* add a ';' */
+                  command_t com = createSimpleCommand(str);
+                  commandPush(_comStack, com);
+                  dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND);
+                  opFlag = SEQUENCE_COMMAND;
+                  prevChar = 0;
+              } else {/* if there is an operator flag*/
+                      /*do nothing*/
               }
       } else {
           /*print error*/
@@ -200,8 +234,6 @@ make_command_stream (int (*get_next_byte) (void *),
 
 }
 
-
-/*WTF????? Needs changing*/
 command_t
 read_command_stream (command_stream_t s)
 {
@@ -209,12 +241,10 @@ read_command_stream (command_stream_t s)
   /* if s is NULL or you are at end of stream return NULL */
   if ((s == NULL) || (s->index >= s->size)) { return NULL; }
   /*set the command to the command at the current index of the command stream*/
-  comm = s->_commands[s->index];
+  comm = s->commands[s->index];
   s->index++; /*increment current index counter*/
   return comm;
 }
-
-
 
 /****************************************
  ** Implementation of wanted functions **
