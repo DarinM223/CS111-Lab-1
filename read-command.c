@@ -54,6 +54,7 @@ int opPush(stackOp *s, int op_type);/*works*/
 
 /*string functions*/
 int append(int ch, char** str, int *str_size); /*works*/
+void resetString(char** str, int *str_size, int resetCapacity);
 
 /*command functions*/
 int isValidWordChar(char c); /*implemented*/
@@ -72,6 +73,8 @@ enum command_type2 {
 
 /*const int END_SUBSHELL_COMMAND = SUBSHELL_COMMAND+1;
 const int LEFT_REDIRECT = SUBSHELL_COMMAND+2, RIGHT_REDIRECT = SUBSHELL_COMMAND+3;*/
+
+int STRALLOCSIZE = 10;
 
 command_stream_t
 make_command_stream (int (*get_next_byte) (void *),
@@ -99,8 +102,10 @@ make_command_stream (int (*get_next_byte) (void *),
   initStackCom(_comStack);
 
   char prevChar = 0;
+  
   int str_size = 10;
   char *str;
+  resetString(&str, &str_size, STRALLOCSIZE);
   str = (char*)checked_malloc(str_size*sizeof(char));
   int subshellFlag = 0;
   int opFlag = -1;
@@ -120,6 +125,7 @@ make_command_stream (int (*get_next_byte) (void *),
                commandPush(_comStack, com);
                dealWithOperator(_opStack, _comStack, PIPE_COMMAND);
                opFlag = PIPE_COMMAND;
+               resetString(&str, &str_size, STRALLOCSIZE);
                prevChar = 0;
           }
           append(curByte, &str, &str_size); /*add the word to a temporary string (will resize if necessary)*/
@@ -137,6 +143,7 @@ make_command_stream (int (*get_next_byte) (void *),
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, AND_COMMAND);
                   opFlag = AND_COMMAND;
+                  resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
               } else 
                   prevChar = '&';
@@ -147,6 +154,7 @@ make_command_stream (int (*get_next_byte) (void *),
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, OR_COMMAND);
                   opFlag = OR_COMMAND;
+                  resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
               } else
                   prevChar = '|';
@@ -157,6 +165,7 @@ make_command_stream (int (*get_next_byte) (void *),
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND);
                   opFlag = SEQUENCE_COMMAND;
+                  resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == '(') {
                   if (opFlag == '<' || opFlag == '>') { /*if the operator flag is < or > */
@@ -172,24 +181,28 @@ make_command_stream (int (*get_next_byte) (void *),
                   /*commandPush(_comStack, com);*/
                   dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND);
                   subshellFlag++; /*increase number of subshells*/
+                  resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == ')') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, END_SUBSHELL_COMMAND);
                   subshellFlag--;
+                  resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == '<') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, LEFT_REDIRECT);
                   opFlag = LEFT_REDIRECT;
+                  resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == '>') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
                   dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT);
                   opFlag = RIGHT_REDIRECT;
+                  resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           }
       } else if (curByte == '\n' || curByte == '#') { /*if c is a newline or comment*/
@@ -198,12 +211,14 @@ make_command_stream (int (*get_next_byte) (void *),
                              curByte = get_next_byte(get_next_byte_argument);
                      } while (curByte != '\n' && curByte != EOF);
               }
+              char **biwords = breakIntoWords(str);
               /*act as if the character is a newline*/
-              if (opFlag == -1 && subshellFlag == 0) { /*if there is no operator flag and the number of subshells is zero*/
+              if (opFlag == -1 && subshellFlag == 0 && biwords != NULL && biwords[0] != NULL) { /*if there is no operator flag and the number of subshells is zero and there is something to push to command stream */
                   /*add the command tree to the command stream*/
                   /*add the last command*/
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
+                  resetString(&str, &str_size, STRALLOCSIZE);
                   int __op;
                   while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
                         createCommandTree(_opStack, _comStack, __op); /*create the tree from the stacks*/
@@ -280,7 +295,6 @@ int isValidWord(char *c) {
  *if its an empty string it returns an empty array of strings
  *if the allocation failed then it returns NULL
  * */
-/*tested and works*/
 char** breakIntoWords(char* str) {
         int arr_capacity = 10;
         int arr_size = 0;
@@ -290,9 +304,9 @@ char** breakIntoWords(char* str) {
                 return strArr;
         }
         int str_size = 10;
-        int modified_str_size = str_size;
-        char *tempStr = (char*)checked_malloc(str_size*sizeof(char));
-        tempStr[0] = '\0';
+        int modified_str_size;
+        char *tempStr = NULL;
+        resetString(&tempStr, &modified_str_size, str_size);
         int i = 0;
         while (1) {
                 if (str[i] == ' ' || str[i] == '\0') {
@@ -318,9 +332,7 @@ char** breakIntoWords(char* str) {
                         free(tempStr);
                         tempStr = NULL;
                         if (str[i] == '\0') break;
-                        tempStr = (char*)checked_malloc(str_size*sizeof(char));
-                        tempStr[0] = '\0';
-                        modified_str_size = str_size;
+                        resetString(&tempStr, &modified_str_size, str_size);
                 } else {
                         /*append the character to the temporary string*/
                         append(str[i], &tempStr, &modified_str_size);
@@ -328,7 +340,6 @@ char** breakIntoWords(char* str) {
                 i++;
         }
         free(tempStr);
-        tempStr = NULL;
         /*try to add the NULL at the end*/
         if (arr_size < arr_capacity) {
                 strArr[arr_size] = NULL;
@@ -373,6 +384,16 @@ int append(int ch, char** str, int *str_size) { /*tested and works*/
               (*str)[size] = ch; /*set the previous zero byte space to the character*/
       }
       return 0;
+}
+
+/* resets the string str with size str_size by freeing the stuff in str and reallocating a resetCapacity amount of characters with the first character being '\0'. The str_size is reset to resetCapacity.
+ * If str is NULL or resetCapacity is 0, the function returns*/
+void resetString(char **str, int *str_size, int resetCapacity) {
+        if (str == NULL) return;
+        if (resetCapacity < 1) return;
+        *str = (char*) checked_malloc(resetCapacity * sizeof(char));
+        *str_size = resetCapacity;
+        (*str)[0] = '\0';
 }
 
 /* ************************* *
