@@ -27,18 +27,6 @@ struct command_stream {
  ** functions either implemented or want to be implemented **
  ************************************************************/
 
-/*string functions*/
-int append(int ch, char** str, int *str_size); /*works*/
-
-/*command functions*/
-int isValidWordChar(char c); /*implemented*/
-int isValidWord(char *c); /*works*/
-int precedence(int op_type); 
-int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type);
-int createCommandTree(stackOp* op_stack, stackCom* com_stack, int com_type);
-char** breakIntoWords(char* str); /*works*/
-command_t createSimpleCommand(char *str); /* don't forget to break words up! Also resize!!*/ /*works*/
-
 typedef struct _stackCom {
     int capacity;
     int size;
@@ -63,8 +51,27 @@ int opPop(stackOp *s); /*works*/
 int opPeek(stackOp *s); /*works*/
 int opPush(stackOp *s, int op_type);/*works*/
 
-const int END_SUBSHELL_COMMAND = SUBSHELL_COMMAND+1;
-const int LEFT_REDIRECT = SUBSHELL_COMMAND+2, RIGHT_REDIRECT = SUBSHELL_COMMAND+3;
+
+/*string functions*/
+int append(int ch, char** str, int *str_size); /*works*/
+
+/*command functions*/
+int isValidWordChar(char c); /*implemented*/
+int isValidWord(char *c); /*works*/
+int precedence(int op_type); 
+int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type);
+int createCommandTree(stackOp* op_stack, stackCom* com_stack, int com_type);
+char** breakIntoWords(char* str); /*works*/
+command_t createSimpleCommand(char *str); /* don't forget to break words up! Also resize!!*/ /*works*/
+
+enum command_type2 {
+        END_SUBSHELL_COMMAND = (SUBSHELL_COMMAND+1),
+        LEFT_REDIRECT,
+        RIGHT_REDIRECT
+};
+
+/*const int END_SUBSHELL_COMMAND = SUBSHELL_COMMAND+1;
+const int LEFT_REDIRECT = SUBSHELL_COMMAND+2, RIGHT_REDIRECT = SUBSHELL_COMMAND+3;*/
 
 command_stream_t
 make_command_stream (int (*get_next_byte) (void *),
@@ -74,10 +81,12 @@ make_command_stream (int (*get_next_byte) (void *),
   command_stream_t stream;
 
   /*initialize stream*/
+ 
+  stream = (command_stream_t) checked_malloc(sizeof(struct command_stream)); /*allocate stream size*/
   stream->capacity = 10;
   stream->size = 0;
   stream->index = 0;
-  stream = (command_stream_t) checked_malloc(sizeof(struct command_stream)); /*allocate stream size*/
+
   stream->commands = (command_t*) checked_malloc(stream->capacity*sizeof(command_t)); /*allocate commands with arbitrary command size (should be "robust")*/
 
    /*builds the stack*/
@@ -115,13 +124,13 @@ make_command_stream (int (*get_next_byte) (void *),
           }
           append(curByte, &str, &str_size); /*add the word to a temporary string (will resize if necessary)*/
           prevChar = 0; /*reset any previous operator chars since there is a correct word char after the operator*/
-      } else if (strchr("&|();<>", c)) { /*if the character is an operator*/
+      } else if (strchr("&|();<>", curByte)) { /*if the character is an operator*/
           if (opFlag != -1 && curByte == '(') { /*if the op flag is set and the char is '(' unset the flag*/
                   opFlag = -1;
           } else {/*if there is an operator flag and the current char is a operator that is not '('*/
                   /*print error*/
           }
-          if (c == '&') {
+          if (curByte == '&') {
               if (prevChar == '&') {
                   /*its a double and*/
                   command_t com = createSimpleCommand(str);
@@ -131,7 +140,7 @@ make_command_stream (int (*get_next_byte) (void *),
                   prevChar = 0;
               } else 
                   prevChar = '&';
-          }  else if (c == '|') {
+          }  else if (curByte == '|') {
               if (prevChar == '|') {
                   /*its a double or*/
                   command_t com = createSimpleCommand(str);
@@ -203,17 +212,17 @@ make_command_stream (int (*get_next_byte) (void *),
                   /*add command tree to stream*/
 
                   if (stream->size < stream->capacity) {
-                        stream->_commands[stream->size] = command_tree;
+                        stream->commands[stream->size] = command_tree;
                         stream->size++;
                   } else {
                         stream->capacity *= 2;
-                        command_t* tempComStream = (command_t*) checked_realloc(stream->_commands, stream->capacity * sizeof(command_t));
+                        command_t* tempComStream = (command_t*) checked_realloc(stream->commands, stream->capacity * sizeof(command_t));
                         if (tempComStream == NULL) { /*print error*/ }
                         else {
-                              stream->_commands = tempComStream;
+                              stream->commands = tempComStream;
                         }
 
-                        stream->_commands[stream->size] = command_tree;
+                        stream->commands[stream->size] = command_tree;
                         stream->size++;
                   }
               } else if (subshellFlag != 0) { /*if there is at least one subshell*/
@@ -230,8 +239,7 @@ make_command_stream (int (*get_next_byte) (void *),
           /*print error*/
       }
   }
-
-
+  return stream;
 }
 
 command_t
@@ -252,13 +260,14 @@ read_command_stream (command_stream_t s)
 
 
 int isValidWordChar(char c) { /*checks if character is valid word character*/
-    return (isascii(c) && (isalum(c) || strchr("!%+,-./:@^_",c)));
+    return (isascii(c) && (isalnum(c) || strchr("!%+,-./:@^_",c)));
 }
 /*returns 0 if not valid, 1 if valid*/
 int isValidWord(char *c) {
        if (strlen(c) == 0) return 0;
        int i;
-       for (i = 0; i < strlen(c); i++) {
+       int size = strlen(c);
+       for (i = 0; i < size; i++) {
                if (!isValidWordChar(c[i])) {
                      return 0;
                } 
@@ -467,6 +476,7 @@ int createCommandTree(stackOp *op_stack, stackCom *com_stack, int com_type)
     
     switch (com_type) {
         case END_SUBSHELL_COMMAND:
+            {
             command_t subshell = (command_t)checked_malloc(sizeof(struct command));
             subshell->type = SUBSHELL_COMMAND;
             subshell->status = -1;
@@ -485,29 +495,33 @@ int createCommandTree(stackOp *op_stack, stackCom *com_stack, int com_type)
                 subshell->u.subshell_command = commandPop(com_stack); /* top command of com_stack is subcommand */
                 commandPush(com_stack, subshell);
             }
+            }
             break;
             /* remember to free simple command */
         case LEFT_REDIRECT:
         case RIGHT_REDIRECT:
+            {
             command_t redir = commandPop(com_stack); /* input/output */
             command_t popped_com = commandPop(com_stack); /* incident command */
             if (redir && popped_com && redir->type == SIMPLE_COMMAND
-                && redir->u.words[1] == NULL) /* input/output has to be 1-word SIMPLE_COMMAND */
+                && redir->u.word[1] == NULL) /* input/output has to be 1-word SIMPLE_COMMAND */
             {
                 if (com_type == LEFT_REDIRECT)
-                    popped_com->input = redir->u.words[0];
+                    popped_com->input = redir->u.word[0];
                 else
-                    popped_com->output = redir->u.words[0];
+                    popped_com->output = redir->u.word[0];
                 commandPush(com_stack, popped_com);
             }
             else
                 return 0;
+            }
             break;
         case PIPE_COMMAND:
         case AND_COMMAND:
         case OR_COMMAND:
         case SEQUENCE_COMMAND:
-            command_t binary = (command_t)checked_malloc(sizeof(command));
+            {
+            command_t binary = (command_t)checked_malloc(sizeof(struct command));
             binary->type = com_type;
             binary->status = -1;
             binary->input = binary->output = 0;
@@ -521,6 +535,7 @@ int createCommandTree(stackOp *op_stack, stackCom *com_stack, int com_type)
             }
             else
                 return 0;
+            }
             break;
         default:
             break;
@@ -543,49 +558,57 @@ int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type)
             break;
         case LEFT_REDIRECT:
         case RIGHT_REDIRECT:
+            {
             int top = opPeek(op_stack);
-            while (flag && (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT))
+            while (flag && ( (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT) ) ) /*was this what you intended?*/
             {
                 int popped_op = opPop(op_stack);
                 flag = createCommandTree(op_stack, com_stack, popped_op);
                 top = opPeek(op_stack);
             }
             opPush(op_stack, op_type);
+            }
             break;
         case PIPE_COMMAND:
+            {
             int top = opPeek(op_stack);
-            while (flag && (top == LEFT_REDIRECT) ||
-                   (top == RIGHT_REDIRECT) || (top == PIPE_COMMAND))
+            while (flag && ( (top == LEFT_REDIRECT) ||
+                   (top == RIGHT_REDIRECT) || (top == PIPE_COMMAND) ) ) /* was this what you intended? */
             {
                 int popped_op = opPop(op_stack);
                 flag = createCommandTree(op_stack, com_stack, popped_op);
                 top = opPeek(op_stack);
             }
             opPush(op_stack, op_type);
+            }
             break;
         case AND_COMMAND:
         case OR_COMMAND:
+            {
             int top = opPeek(op_stack);
-            while (flag && (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT)
-                   || (top == PIPE_COMMAND) || (top == AND_COMMAND) || (top == OR_COMMAND))
+            while (flag && ( (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT)
+                   || (top == PIPE_COMMAND) || (top == AND_COMMAND) || (top == OR_COMMAND) ) ) /*was this what you intended?*/
             {
                 int popped_op = opPop(op_stack);
                 flag = createCommandTree(op_stack, com_stack, popped_op);
                 top = opPeek(op_stack);
             }
             opPush(op_stack, op_type);
+            }
             break;
         case SEQUENCE_COMMAND:
+            {
             int top = opPeek(op_stack);
-            while (flag && (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT)
+            while (flag && ( (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT)
                    || (top == PIPE_COMMAND) || (top == AND_COMMAND) || (top == OR_COMMAND)
-                   || (top != SEQUENCE_COMMAND))
+                   || (top != SEQUENCE_COMMAND) ) ) /*was this what you intended?*/
             {
                 int popped_op = opPop(op_stack);
                 flag = createCommandTree(op_stack, com_stack, popped_op);
                 top = opPeek(op_stack);
             }
             opPush(op_stack, op_type);
+            }
             break;
         default:
             break;
