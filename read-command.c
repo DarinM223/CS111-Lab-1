@@ -429,5 +429,140 @@ int commandPush(stackCom *s, command_t c) {
         return 0;
 }
 
+/* modify command tree given an operator */
+/* return 1 if successful, 0 otherwise */
+int createCommandTree(stackOp *op_stack, stackCom *com_stack, int com_type)
+{
+    int flag = 1; /* return value */
+    
+    switch (com_type) {
+        case END_SUBSHELL_COMMAND:
+            command_t subshell = (command_t)checked_malloc(sizeof(struct command));
+            subshell->type = SUBSHELL_COMMAND;
+            subshell->status = -1;
+            subshell->input = subshell->output = 0;
+            /* create tree for subcommand */
+            while (flag && op_stack->size && opPeek(op_stack) != SUBSHELL_COMMAND)
+            {
+                int popped_op = opPop(op_stack);
+                flag = createCommandTree(op_stack, com_stack, popped_op);
+            }
+            if (opPeek(op_stack) != SUBSHELL_COMMAND) /* error */
+                return 0;
+            else
+            {
+                opPop(op_stack);
+                subshell->u.subshell_command = commandPop(com_stack); /* top command of com_stack is subcommand */
+                commandPush(com_stack, subshell);
+            }
+            break;
+            /* remember to free simple command */
+        case LEFT_REDIRECT:
+        case RIGHT_REDIRECT:
+            command_t redir = commandPop(com_stack); /* input/output */
+            command_t popped_com = commandPop(com_stack); /* incident command */
+            if (redir && popped_com && redir->type == SIMPLE_COMMAND
+                && redir->u.words[1] == NULL) /* input/output has to be 1-word SIMPLE_COMMAND */
+            {
+                if (com_type == LEFT_REDIRECT)
+                    popped_com->input = redir->u.words[0];
+                else
+                    popped_com->output = redir->u.words[0];
+                commandPush(com_stack, popped_com);
+            }
+            else
+                return 0;
+            break;
+        case PIPE_COMMAND:
+        case AND_COMMAND:
+        case OR_COMMAND:
+        case SEQUENCE_COMMAND:
+            command_t binary = (command_t)checked_malloc(sizeof(command));
+            binary->type = com_type;
+            binary->status = -1;
+            binary->input = binary->output = 0;
+            command_t com2 = commandPop(com_stack); /* second half */
+            command_t com1 = commandPop(com_stack); /* first half */
+            if (com1 && com2)
+            {
+                binary->u.command[0] = com1;
+                binary->u.command[1] = com2;
+                commandPush(com_stack, binary);
+            }
+            else
+                return 0;
+            break;
+        default:
+            break;
+    }
+    return flag;
+}
+
+/* take one operator, rearrange the stack if necessary */
+/* return 1 if successful, 0 otherwise */
+int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type)
+{
+    int flag = 1; /* return value */
+    switch (op_type)
+    {
+        case SUBSHELL_COMMAND:
+            opPush(op_stack, op_type); /* push anyways */
+            break;
+        case END_SUBSHELL_COMMAND:
+            flag = createCommandTree(op_stack, com_stack, op_type); /* pop everything before ( */
+            break;
+        case LEFT_REDIRECT:
+        case RIGHT_REDIRECT:
+            int top = opPeek(op_stack);
+            while (flag && (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT))
+            {
+                int popped_op = opPop(op_stack);
+                flag = createCommandTree(op_stack, com_stack, popped_op);
+                top = opPeek(op_stack);
+            }
+            opPush(op_stack, op_type);
+            break;
+        case PIPE_COMMAND:
+            int top = opPeek(op_stack);
+            while (flag && (top == LEFT_REDIRECT) ||
+                   (top == RIGHT_REDIRECT) || (top == PIPE_COMMAND))
+            {
+                int popped_op = opPop(op_stack);
+                flag = createCommandTree(op_stack, com_stack, popped_op);
+                top = opPeek(op_stack);
+            }
+            opPush(op_stack, op_type);
+            break;
+        case AND_COMMAND:
+        case OR_COMMAND:
+            int top = opPeek(op_stack);
+            while (flag && (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT)
+                   || (top == PIPE_COMMAND) || (top == AND_COMMAND) || (top == OR_COMMAND))
+            {
+                int popped_op = opPop(op_stack);
+                flag = createCommandTree(op_stack, com_stack, popped_op);
+                top = opPeek(op_stack);
+            }
+            opPush(op_stack, op_type);
+            break;
+        case SEQUENCE_COMMAND:
+            int top = opPeek(op_stack);
+            while (flag && (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT)
+                   || (top == PIPE_COMMAND) || (top == AND_COMMAND) || (top == OR_COMMAND)
+                   || (top != SEQUENCE_COMMAND))
+            {
+                int popped_op = opPop(op_stack);
+                flag = createCommandTree(op_stack, com_stack, popped_op);
+                top = opPeek(op_stack);
+            }
+            opPush(op_stack, op_type);
+            break;
+        default:
+            break;
+    }
+    return flag;
+}
+
+
 
 
