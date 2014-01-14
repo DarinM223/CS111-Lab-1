@@ -238,6 +238,7 @@ make_command_stream (int (*get_next_byte) (void *),
       } else {
           /*print error*/
       }
+      curByte = get_next_byte(get_next_byte_argument); /* read next char */
   }
   return stream;
 }
@@ -560,7 +561,7 @@ int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type)
         case RIGHT_REDIRECT:
             {
             int top = opPeek(op_stack);
-            while (flag && ( (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT) ) ) /*was this what you intended?*/
+            while (flag && ( (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT) ) ) 
             {
                 int popped_op = opPop(op_stack);
                 flag = createCommandTree(op_stack, com_stack, popped_op);
@@ -573,7 +574,7 @@ int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type)
             {
             int top = opPeek(op_stack);
             while (flag && ( (top == LEFT_REDIRECT) ||
-                   (top == RIGHT_REDIRECT) || (top == PIPE_COMMAND) ) ) /* was this what you intended? */
+                   (top == RIGHT_REDIRECT) || (top == PIPE_COMMAND) ) ) 
             {
                 int popped_op = opPop(op_stack);
                 flag = createCommandTree(op_stack, com_stack, popped_op);
@@ -587,7 +588,7 @@ int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type)
             {
             int top = opPeek(op_stack);
             while (flag && ( (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT)
-                   || (top == PIPE_COMMAND) || (top == AND_COMMAND) || (top == OR_COMMAND) ) ) /*was this what you intended?*/
+                   || (top == PIPE_COMMAND) || (top == AND_COMMAND) || (top == OR_COMMAND) ) )
             {
                 int popped_op = opPop(op_stack);
                 flag = createCommandTree(op_stack, com_stack, popped_op);
@@ -601,7 +602,7 @@ int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type)
             int top = opPeek(op_stack);
             while (flag && ( (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT)
                    || (top == PIPE_COMMAND) || (top == AND_COMMAND) || (top == OR_COMMAND)
-                   || (top != SEQUENCE_COMMAND) ) ) /*was this what you intended?*/
+                   || (top == SEQUENCE_COMMAND) ) ) /*fixed*/
             {
                 int popped_op = opPop(op_stack);
                 flag = createCommandTree(op_stack, com_stack, popped_op);
