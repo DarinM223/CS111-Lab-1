@@ -65,6 +65,8 @@ int createCommandTree(stackOp* op_stack, stackCom* com_stack, int com_type);
 char** breakIntoWords(char* str); /*works*/
 command_t createSimpleCommand(char *str); /* don't forget to break words up! Also resize!!*/ /*works*/
 
+void printError(int lineNum);
+
 enum command_type2 {
         END_SUBSHELL_COMMAND = (SUBSHELL_COMMAND+1),
         LEFT_REDIRECT,
@@ -81,6 +83,7 @@ make_command_stream (int (*get_next_byte) (void *),
 		     void *get_next_byte_argument)
 {
   int curByte;
+  int lineNum = 1; /*start at line 1*/
   command_stream_t stream;
 
   /*initialize stream*/
@@ -120,12 +123,13 @@ make_command_stream (int (*get_next_byte) (void *),
            if (opFlag != -1 && (isValidWordChar(curByte) || curByte == '(')) opFlag = -1; /*if op flag is set and the char is either a word char or a '(' unset the flag*/ 
            if (prevChar == '&') { /*if the previous character was '&' */
                /*print error*/
+               printError(lineNum);
            }
            if (prevChar == '|') { /*if the previous character was '|' */
                /*its a pipeline*/
                command_t com = createSimpleCommand(str);
                commandPush(_comStack, com);
-               dealWithOperator(_opStack, _comStack, PIPE_COMMAND);
+               if (dealWithOperator(_opStack, _comStack, PIPE_COMMAND) == -1) printError(lineNum);
                opFlag = PIPE_COMMAND;
                resetString(&str, &str_size, STRALLOCSIZE);
                prevChar = 0;
@@ -139,7 +143,7 @@ make_command_stream (int (*get_next_byte) (void *),
                      /*its a semicolon*/
                      command_t com = createSimpleCommand(str);
                      commandPush(_comStack, com);
-                     dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND);
+                     if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == -1) printError(lineNum);
                      opFlag = SEQUENCE_COMMAND;
                      resetString(&str, &str_size, STRALLOCSIZE);
                      prevChar = 0;
@@ -162,7 +166,7 @@ make_command_stream (int (*get_next_byte) (void *),
                      } else {
                           stream->capacity *= 2;
                           command_t* tempComStream = (command_t*) checked_realloc(stream->commands, stream->capacity * sizeof(command_t));
-                          if (tempComStream == NULL) { /*print error*/ }
+                          if (tempComStream == NULL) { /*print error*/ printError(lineNum); }
                           else {
                                 stream->commands = tempComStream;
                           }
@@ -174,6 +178,7 @@ make_command_stream (int (*get_next_byte) (void *),
                      newlineFlag = 0;
                   } else { /*if there is 0 or less newlines*/
                       /*print error*/
+                      printError(lineNum);
                   }
                }
            }
@@ -186,8 +191,10 @@ make_command_stream (int (*get_next_byte) (void *),
 
           if (opFlag != -1 && curByte != '(') { /*if there is an operator flag and the current char is a operator that is not '('*/
               /*print error*/
+              printError(lineNum);
           } if ((curByte != '&' && curByte != '|') && (prevChar == '&' || prevChar == '|')) { /*if the character isn't '&' or '|' but the previous character was*/
               /*print error*/
+              printError(lineNum);
           }
 
 
@@ -196,7 +203,7 @@ make_command_stream (int (*get_next_byte) (void *),
                   /*its a double and*/
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  dealWithOperator(_opStack, _comStack, AND_COMMAND);
+                  if (dealWithOperator(_opStack, _comStack, AND_COMMAND) == -1) printError(lineNum);
                   opFlag = AND_COMMAND;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
@@ -207,7 +214,7 @@ make_command_stream (int (*get_next_byte) (void *),
                   /*its a double or*/
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  dealWithOperator(_opStack, _comStack, OR_COMMAND);
+                  if (dealWithOperator(_opStack, _comStack, OR_COMMAND) == -1) printError(lineNum);
                   opFlag = OR_COMMAND;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
@@ -216,41 +223,42 @@ make_command_stream (int (*get_next_byte) (void *),
           } else if (curByte == ';') { /* if the character is the ';' character */
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND);
+                  if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == -1) printError(lineNum);
                   opFlag = SEQUENCE_COMMAND;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == '(') {
                   if (opFlag == '<' || opFlag == '>') { /*if the operator flag is < or > */
                           /*print error*/
+                          printError(lineNum);
                   }
                   char **biwords = breakIntoWords(str);
                   if (biwords != NULL && biwords[0] != NULL ) { 
                           command_t com = createSimpleCommand(str);
                           commandPush(_comStack, com);
                   }
-                  dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND);
+                  if (dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND) == -1) printError(lineNum);
                   subshellFlag++; /*increase number of subshells*/
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == ')') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  dealWithOperator(_opStack, _comStack, END_SUBSHELL_COMMAND);
+                  if (dealWithOperator(_opStack, _comStack, END_SUBSHELL_COMMAND) == -1) printError(lineNum);
                   subshellFlag--;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == '<') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  dealWithOperator(_opStack, _comStack, LEFT_REDIRECT);
+                  if (dealWithOperator(_opStack, _comStack, LEFT_REDIRECT) == -1) printError(lineNum);
                   opFlag = LEFT_REDIRECT;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == '>') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT);
+                  if (dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT) == -1) printError(lineNum);
                   opFlag = RIGHT_REDIRECT;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
@@ -261,6 +269,7 @@ make_command_stream (int (*get_next_byte) (void *),
                              curByte = get_next_byte(get_next_byte_argument);
                      } while (curByte != '\n' && curByte != EOF);
               }
+              lineNum++; /*increment regardless*/
               char **biwords = breakIntoWords(str);
               /*act as if the character is a newline*/
               if (opFlag == -1 && biwords != NULL && biwords[0] != NULL) { /*if it is a complete command*/
@@ -272,6 +281,7 @@ make_command_stream (int (*get_next_byte) (void *),
               }
       } else {
           /*print error*/
+          printError(lineNum);
       }
   }
 
@@ -292,7 +302,7 @@ make_command_stream (int (*get_next_byte) (void *),
   } else {
         stream->capacity += 1;
         command_t* tempComStream = (command_t*) checked_realloc(stream->commands, stream->capacity * sizeof(command_t));
-        if (tempComStream == NULL) { /*print error*/ }
+        if (tempComStream == NULL) { /*print error*/ printError(lineNum); }
         else {
              stream->commands = tempComStream;
         }
@@ -373,6 +383,8 @@ char** breakIntoWords(char* str) {
                                         strcpy(strArr[arr_size], tempStr);
                                         arr_size++;
                                 }
+                        } else { /* if string is not valid */
+                                /*print error*/
                         }
                         /*reset tempStr*/
                         free(tempStr);
@@ -685,5 +697,8 @@ int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type)
 }
 
 
-
+void printError(int lineNum) {
+       fprintf(stderr, "%d: syntax error!!!\n", lineNum); 
+       exit(1);
+}
 
