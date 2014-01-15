@@ -109,17 +109,19 @@ make_command_stream (int (*get_next_byte) (void *),
   str = (char*)checked_malloc(str_size*sizeof(char));
   int subshellFlag = 0;
   int opFlag = -1;
+  int newlineFlag = 0;
+  int __op;
   /*if op flag is set
    * if a word char or a beginning subshell is next readed char then reset op flag
    */
   /* read every byte */
-  for (curByte = get_next_byte(get_next_byte_argument); curByte != EOF ; ) {
-      if (isValidWordChar(curByte) || strchr(" \t", curByte)) { /*if the character is a word character or space*/
-          if (isValidWordChar(curByte) && opFlag != -1) opFlag = -1; /*if op flag is set and the char is a word char unset the flag*/ 
-          if (prevChar == '&') { /*if the previous character was '&' */
-              /*print error*/
-          }
-          if (prevChar == '|') { /*if the previous character was '|' */
+  for (curByte = get_next_byte(get_next_byte_argument); curByte != EOF ; curByte = get_next_byte(get_next_byte_argument)) {
+      if (isValidWordChar(curByte) || strchr(" \t(", curByte)) {
+           if (opFlag != -1 && (isValidWordChar(curByte) || curByte == '(')) opFlag = -1; /*if op flag is set and the char is either a word char or a '(' unset the flag*/ 
+           if (prevChar == '&') { /*if the previous character was '&' */
+               /*print error*/
+           }
+           if (prevChar == '|') { /*if the previous character was '|' */
                /*its a pipeline*/
                command_t com = createSimpleCommand(str);
                commandPush(_comStack, com);
@@ -127,15 +129,68 @@ make_command_stream (int (*get_next_byte) (void *),
                opFlag = PIPE_COMMAND;
                resetString(&str, &str_size, STRALLOCSIZE);
                prevChar = 0;
-          }
+           } 
+           if (prevChar == '\n') { /*if the previous character was '\n'*/
+               if (strchr(" \t", curByte)) { /*if the current character is a space*/
+                    /*do nothing*/
+                    continue;
+               } else {
+                  if (newlineFlag == 1) { /*if there is only one newline*/
+                     /*its a semicolon*/
+                     command_t com = createSimpleCommand(str);
+                     commandPush(_comStack, com);
+                     dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND);
+                     opFlag = SEQUENCE_COMMAND;
+                     resetString(&str, &str_size, STRALLOCSIZE);
+                     prevChar = 0;
+                     newlineFlag = 0;
+                  } else if (newlineFlag > 1) { /*if there is more than one newline*/
+                     /*add the command tree to the command stream*/
+                     /*add the last command*/
+                     command_t com = createSimpleCommand(str);
+                     commandPush(_comStack, com);
+                     resetString(&str, &str_size, STRALLOCSIZE);
+                     while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
+                           createCommandTree(_opStack, _comStack, __op); /*create the tree from the stacks*/
+                     }
+                     command_t command_tree = commandPop(_comStack);
+                     /*add command tree to stream*/
+
+                     if (stream->size < stream->capacity) {
+                          stream->commands[stream->size] = command_tree;
+                          stream->size++;
+                     } else {
+                          stream->capacity *= 2;
+                          command_t* tempComStream = (command_t*) checked_realloc(stream->commands, stream->capacity * sizeof(command_t));
+                          if (tempComStream == NULL) { /*print error*/ }
+                          else {
+                                stream->commands = tempComStream;
+                          }
+
+                          stream->commands[stream->size] = command_tree;
+                          stream->size++;
+                     }
+		     prevChar = 0; /*reset the previous char back to 0*/
+                     newlineFlag = 0;
+                  } else { /*if there is 0 or less newlines*/
+                      /*print error*/
+                  }
+               }
+           }
+      }
+
+
+      if (isValidWordChar(curByte) || strchr(" \t", curByte)) { /*if the character is a word character or space*/
           append(curByte, &str, &str_size); /*add the word to a temporary string (will resize if necessary)*/
-          prevChar = 0; /*reset any previous operator chars since there is a correct word char after the operator*/
       } else if (strchr("&|();<>", curByte)) { /*if the character is an operator*/
-          if (opFlag != -1 && curByte == '(') { /*if the op flag is set and the char is '(' unset the flag*/
-                  opFlag = -1;
-          } else {/*if there is an operator flag and the current char is a operator that is not '('*/
-                  /*print error*/
+
+          if (opFlag != -1 && curByte != '(') { /*if there is an operator flag and the current char is a operator that is not '('*/
+              /*print error*/
+          } if ((curByte != '&' && curByte != '|') && (prevChar == '&' || prevChar == '|')) { /*if the character isn't '&' or '|' but the previous character was*/
+              /*print error*/
           }
+
+
           if (curByte == '&') {
               if (prevChar == '&') {
                   /*its a double and*/
@@ -158,8 +213,6 @@ make_command_stream (int (*get_next_byte) (void *),
                   prevChar = 0;
               } else
                   prevChar = '|';
-          } else if (prevChar == '&' || prevChar == '|')  { /* if the character isn't '&' or '|' but the previous character was*/
-              /*print error*/
           } else if (curByte == ';') { /* if the character is the ';' character */
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
@@ -170,15 +223,12 @@ make_command_stream (int (*get_next_byte) (void *),
           } else if (curByte == '(') {
                   if (opFlag == '<' || opFlag == '>') { /*if the operator flag is < or > */
                           /*print error*/
-                  } else if (opFlag == -1) { /*if the operator flag hasn't been set*/
-                          /*print error*/
                   }
-                  /*DO NOT ADD THE LAST COMMAND*/
-                  /*Only things possible are:
-                   * a op (blah)
-                   * (blah) */
-                  /*command_t com = createSimpleCommand(str);*/
-                  /*commandPush(_comStack, com);*/
+                  char **biwords = breakIntoWords(str);
+                  if (biwords != NULL && biwords[0] != NULL ) { 
+                          command_t com = createSimpleCommand(str);
+                          commandPush(_comStack, com);
+                  }
                   dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND);
                   subshellFlag++; /*increase number of subshells*/
                   resetString(&str, &str_size, STRALLOCSIZE);
@@ -213,48 +263,44 @@ make_command_stream (int (*get_next_byte) (void *),
               }
               char **biwords = breakIntoWords(str);
               /*act as if the character is a newline*/
-              if (opFlag == -1 && subshellFlag == 0 && biwords != NULL && biwords[0] != NULL) { /*if there is no operator flag and the number of subshells is zero and there is something to push to command stream */
-                  /*add the command tree to the command stream*/
-                  /*add the last command*/
-                  command_t com = createSimpleCommand(str);
-                  commandPush(_comStack, com);
-                  resetString(&str, &str_size, STRALLOCSIZE);
-                  int __op;
-                  while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
-                        createCommandTree(_opStack, _comStack, __op); /*create the tree from the stacks*/
-                  }
-                  command_t command_tree = commandPop(_comStack);
-                  /*add command tree to stream*/
-
-                  if (stream->size < stream->capacity) {
-                        stream->commands[stream->size] = command_tree;
-                        stream->size++;
-                  } else {
-                        stream->capacity *= 2;
-                        command_t* tempComStream = (command_t*) checked_realloc(stream->commands, stream->capacity * sizeof(command_t));
-                        if (tempComStream == NULL) { /*print error*/ }
-                        else {
-                              stream->commands = tempComStream;
-                        }
-
-                        stream->commands[stream->size] = command_tree;
-                        stream->size++;
-                  }
-              } else if (subshellFlag != 0) { /*if there is at least one subshell*/
-                  /* add a ';' */
-                  command_t com = createSimpleCommand(str);
-                  commandPush(_comStack, com);
-                  dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND);
-                  opFlag = SEQUENCE_COMMAND;
-                  prevChar = 0;
-              } else {/* if there is an operator flag*/
+              if (opFlag == -1 && biwords != NULL && biwords[0] != NULL) { /*if it is a complete command*/
+                  prevChar = '\n'; /*set the previous char to '\n'*/
+                  newlineFlag++;
+              } else {/* if there is an operator flag or there isn't anything to add*/
                       /*do nothing*/
+                      continue;
               }
       } else {
           /*print error*/
       }
-      curByte = get_next_byte(get_next_byte_argument); /* read next char */
   }
+
+
+  /*add the last command*/
+  command_t com = createSimpleCommand(str);
+  commandPush(_comStack, com);
+  resetString(&str, &str_size, STRALLOCSIZE);
+  while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
+        createCommandTree(_opStack, _comStack, __op); /*create the tree from the stacks*/
+  }
+  command_t _command_tree = commandPop(_comStack);
+  /*add command tree to stream*/
+
+  if (stream->size < stream->capacity) {
+        stream->commands[stream->size] = _command_tree;
+        stream->size++;
+  } else {
+        stream->capacity += 1;
+        command_t* tempComStream = (command_t*) checked_realloc(stream->commands, stream->capacity * sizeof(command_t));
+        if (tempComStream == NULL) { /*print error*/ }
+        else {
+             stream->commands = tempComStream;
+        }
+
+        stream->commands[stream->size] = _command_tree;
+        stream->size++;
+  }
+
   return stream;
 }
 
