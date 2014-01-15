@@ -1,0 +1,70 @@
+# 1
+      b \
+    &&
+      c<d \
+  ;
+    f
+# 2
+        b \
+      &&
+        c \
+    ||
+        d \
+      |
+        e<c \
+  ;
+    y>z
+# 3
+    g \
+  &&
+    h
+# 4
+      s \
+    &&
+      c \
+  ||
+    b
+# 5
+      b \
+    &&
+      d \
+  ||
+    c
+# 6
+    d \
+  &&
+    e \
+  &&
+    flag...
+# 7
+    g \
+  &&
+    h
+# 8
+    hello \
+  ;
+    world
+# 9
+    d \
+  &&
+    b
+# 10
+    sort -a \
+  ;
+      cat -d file.txt \
+    &&
+      blah -c -d foo<cat \
+  ;
+      blah foo \
+    &&
+      cat
+# 11
+    arron \
+  ;
+      c \
+    &&
+      blah<d \
+    &&
+        diff -a \
+      |
+        e

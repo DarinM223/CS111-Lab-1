@@ -119,32 +119,50 @@ make_command_stream (int (*get_next_byte) (void *),
    */
   /* read every byte */
   for (curByte = get_next_byte(get_next_byte_argument); curByte != EOF ; curByte = get_next_byte(get_next_byte_argument)) {
-      if (isValidWordChar(curByte) || strchr(" \t(", curByte)) {
-           if (opFlag != -1 && (isValidWordChar(curByte) || curByte == '(')) opFlag = -1; /*if op flag is set and the char is either a word char or a '(' unset the flag*/ 
-           if (prevChar == '&') { /*if the previous character was '&' */
-               /*print error*/
-               printError(lineNum);
-           }
+
+      /* *************
+       * Unsets flag *
+       * *************/
+      if (opFlag != -1 && (isValidWordChar(curByte) || curByte == '(')) opFlag = -1; /*if op flag is set and the char is either a word char or a '(' unset the flag*/ 
+
+
+      /* *******************************************
+       * Checks if it is '|' (pipe) or '&' (error) *
+       * *******************************************/
+      if (isValidWordChar(curByte) || strchr(" \t(\n", curByte)) {
            if (prevChar == '|') { /*if the previous character was '|' */
                /*its a pipeline*/
                command_t com = createSimpleCommand(str);
                commandPush(_comStack, com);
-               if (dealWithOperator(_opStack, _comStack, PIPE_COMMAND) == -1) printError(lineNum);
+               if (dealWithOperator(_opStack, _comStack, PIPE_COMMAND) == 0) printError(lineNum);
+               if (isValidWordChar(curByte)) opFlag = -1; /*if curByte is a word character, then theres no need for a opFlag*/
+               else { /*if curByte is a space, tab, or newline*/
                opFlag = PIPE_COMMAND;
+               }
                resetString(&str, &str_size, STRALLOCSIZE);
                prevChar = 0;
-           } 
+           }
+           if (prevChar == '&') { /*if the previous character was '&' */
+               /*print error*/
+               printError(lineNum);
+           }
+      } 
+
+      /* ************************************************************************************************************************
+       * does newline handling, inserts semicolon for one line, adds to command tree for two lines, and ignores spaces and tabs *
+       * ************************************************************************************************************************/
+      if (isValidWordChar(curByte) || strchr(" \t(", curByte)) {
            if (prevChar == '\n') { /*if the previous character was '\n'*/
                if (strchr(" \t", curByte)) { /*if the current character is a space*/
-                    /*do nothing*/
+                    /*continue*/
                     continue;
-               } else {
+               }  else {
                   if (newlineFlag == 1) { /*if there is only one newline*/
                      /*its a semicolon*/
                      command_t com = createSimpleCommand(str);
                      commandPush(_comStack, com);
-                     if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == -1) printError(lineNum);
-                     opFlag = SEQUENCE_COMMAND;
+                     if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == 0) printError(lineNum);
+                     opFlag = -1;
                      resetString(&str, &str_size, STRALLOCSIZE);
                      prevChar = 0;
                      newlineFlag = 0;
@@ -182,20 +200,20 @@ make_command_stream (int (*get_next_byte) (void *),
                   }
                }
            }
-      }
 
-
-      if (isValidWordChar(curByte) || strchr(" \t", curByte)) { /*if the character is a word character or space*/
-          append(curByte, &str, &str_size); /*add the word to a temporary string (will resize if necessary)*/
+           /* ****************************************************************************
+            * handles operators &&, ||, <, >, (, and ), pushes to stack and sets op flag *
+            * ****************************************************************************/
       } else if (strchr("&|();<>", curByte)) { /*if the character is an operator*/
 
-          if (opFlag != -1 && curByte != '(') { /*if there is an operator flag and the current char is a operator that is not '('*/
+          if ((opFlag != -1 || newlineFlag > 0) && curByte != '(') { /*if there is an operator flag or a newline and the current char is a operator that is not '('*/
               /*print error*/
               printError(lineNum);
           } if ((curByte != '&' && curByte != '|') && (prevChar == '&' || prevChar == '|')) { /*if the character isn't '&' or '|' but the previous character was*/
               /*print error*/
               printError(lineNum);
           }
+          /*if (prevChar == '\n') printError(lineNum);*/
 
 
           if (curByte == '&') {
@@ -203,7 +221,7 @@ make_command_stream (int (*get_next_byte) (void *),
                   /*its a double and*/
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  if (dealWithOperator(_opStack, _comStack, AND_COMMAND) == -1) printError(lineNum);
+                  if (dealWithOperator(_opStack, _comStack, AND_COMMAND) == 0) printError(lineNum);
                   opFlag = AND_COMMAND;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
@@ -214,7 +232,7 @@ make_command_stream (int (*get_next_byte) (void *),
                   /*its a double or*/
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  if (dealWithOperator(_opStack, _comStack, OR_COMMAND) == -1) printError(lineNum);
+                  if (dealWithOperator(_opStack, _comStack, OR_COMMAND) == 0) printError(lineNum);
                   opFlag = OR_COMMAND;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
@@ -223,7 +241,7 @@ make_command_stream (int (*get_next_byte) (void *),
           } else if (curByte == ';') { /* if the character is the ';' character */
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == -1) printError(lineNum);
+                  if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == 0) printError(lineNum);
                   opFlag = SEQUENCE_COMMAND;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
@@ -237,32 +255,37 @@ make_command_stream (int (*get_next_byte) (void *),
                           command_t com = createSimpleCommand(str);
                           commandPush(_comStack, com);
                   }
-                  if (dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND) == -1) printError(lineNum);
+                  if (dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND) == 0) printError(lineNum);
                   subshellFlag++; /*increase number of subshells*/
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == ')') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  if (dealWithOperator(_opStack, _comStack, END_SUBSHELL_COMMAND) == -1) printError(lineNum);
+                  if (dealWithOperator(_opStack, _comStack, END_SUBSHELL_COMMAND) == 0) printError(lineNum);
                   subshellFlag--;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == '<') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  if (dealWithOperator(_opStack, _comStack, LEFT_REDIRECT) == -1) printError(lineNum);
+                  if (dealWithOperator(_opStack, _comStack, LEFT_REDIRECT) == 0) printError(lineNum);
                   opFlag = LEFT_REDIRECT;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == '>') {
                   command_t com = createSimpleCommand(str);
                   commandPush(_comStack, com);
-                  if (dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT) == -1) printError(lineNum);
+                  if (dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT) == 0) printError(lineNum);
                   opFlag = RIGHT_REDIRECT;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           }
+
+          /* ***************************************************************************************************************
+           * deals with '\n', adds line number, increments newlineFlag, and sets prevChar to '\n' to be handled at the top,
+           * and ignores incomplete commands
+           * ***************************************************************************************************************/
       } else if (curByte == '\n' || curByte == '#') { /*if c is a newline or comment*/
               if (curByte == '#') { /*if c is a comment loop then ignore until a newline is reached*/
                      do {
@@ -282,6 +305,15 @@ make_command_stream (int (*get_next_byte) (void *),
       } else {
           /*print error*/
           printError(lineNum);
+      }
+
+
+
+      /* *******************************************************************************************************
+       * appends the character (at the very end so the current byte won't be appended to the previous command) *
+       * *******************************************************************************************************/
+      if (isValidWordChar(curByte) || strchr(" \t", curByte)) { /*if the character is a word character or space*/
+           append(curByte, &str, &str_size); /*add the word to a temporary string (will resize if necessary)*/
       }
   }
 
@@ -365,7 +397,7 @@ char** breakIntoWords(char* str) {
         resetString(&tempStr, &modified_str_size, str_size);
         int i = 0;
         while (1) {
-                if (str[i] == ' ' || str[i] == '\0') {
+                if (str[i] == ' ' || str[i] == '\t' || str[i] == '\0') {
                         if (isValidWord(tempStr) != 0) { /*add to strings only if it is valid*/
                                 /*add tempStr to the array of c strings*/
                                 if (arr_size < arr_capacity) {
@@ -699,6 +731,6 @@ int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type)
 
 void printError(int lineNum) {
        fprintf(stderr, "%d: syntax error!!!\n", lineNum); 
-       exit(1);
+*      exit(1); /*comment this out to debug*/
 }
 
