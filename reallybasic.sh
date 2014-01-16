@@ -58,3 +58,12 @@ a<b>c|d<e>f|g<h>i
 (cat a && sort b) < b
 
 ( (cat a && sort b) || (cat b && sort a) ) < b
+
+
+( (cat a && sort b) && #hello!
+(cat b && sort a) )
+(cat c ; sort d) 
+
+( (blah z ; blah d | blah gg) ||
+  	(ggggg) )
+asdfjkl

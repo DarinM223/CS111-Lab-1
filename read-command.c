@@ -133,8 +133,10 @@ make_command_stream (int (*get_next_byte) (void *),
       if (isValidWordChar(curByte) || strchr(" \t(\n", curByte)) {
            if (prevChar == '|') { /*if the previous character was '|' */
                /*its a pipeline*/
-               command_t com = createSimpleCommand(str);
-               commandPush(_comStack, com);
+               if (!subshellLock) {
+                        command_t com = createSimpleCommand(str);
+                        commandPush(_comStack, com);
+               } else { subshellLock = 0; }
                if (dealWithOperator(_opStack, _comStack, PIPE_COMMAND) == 0) printError(lineNum);
                if (isValidWordChar(curByte)) opFlag = -1; /*if curByte is a word character, then theres no need for a opFlag*/
                else { /*if curByte is a space, tab, or newline*/
@@ -160,8 +162,10 @@ make_command_stream (int (*get_next_byte) (void *),
                }  else {
                   if (newlineFlag == 1) { /*if there is only one newline*/
                      /*its a semicolon*/
-                     command_t com = createSimpleCommand(str);
-                     commandPush(_comStack, com);
+                     if (!subshellLock) {
+                        command_t com = createSimpleCommand(str);
+                        commandPush(_comStack, com);
+                     } else { subshellLock = 0; }
                      if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == 0) printError(lineNum);
                      opFlag = -1;
                      resetString(&str, &str_size, STRALLOCSIZE);
@@ -170,8 +174,10 @@ make_command_stream (int (*get_next_byte) (void *),
                   } else if (newlineFlag > 1) { /*if there is more than one newline*/
                      /*add the command tree to the command stream*/
                      /*add the last command*/
-                     command_t com = createSimpleCommand(str);
-                     commandPush(_comStack, com);
+                     if (!subshellLock) {
+                        command_t com = createSimpleCommand(str);
+                        commandPush(_comStack, com);
+                     } else { subshellLock = 0; }
                      resetString(&str, &str_size, STRALLOCSIZE);
                      while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
                            createCommandTree(_opStack, _comStack, __op); /*create the tree from the stacks*/
@@ -206,11 +212,12 @@ make_command_stream (int (*get_next_byte) (void *),
                           /*print error*/
                           printError(lineNum);
                   }
-                  char **biwords = breakIntoWords(str);
-                  if (biwords != NULL && biwords[0] != NULL ) { 
+                  /*char **biwords = breakIntoWords(str);*/
+                  /*if (biwords != NULL && biwords[0] != NULL ) { 
                           command_t com = createSimpleCommand(str);
                           commandPush(_comStack, com);
-                  }
+                  }*/
+                  /*if (subshellLock) printError(lineNum);*/
                   if (dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND) == 0) printError(lineNum);
                   subshellFlag++; /*increase number of subshells*/
                   resetString(&str, &str_size, STRALLOCSIZE);
@@ -311,7 +318,7 @@ make_command_stream (int (*get_next_byte) (void *),
               lineNum++; /*increment regardless*/
               char **biwords = breakIntoWords(str);
               /*act as if the character is a newline*/
-              if (opFlag == -1 && biwords != NULL && biwords[0] != NULL) { /*if it is a complete command*/
+              if (opFlag == -1 && subshellFlag == 0 && (subshellLock != 0 || (biwords != NULL && biwords[0] != NULL))) { /*if it is a complete command*/
                   prevChar = '\n'; /*set the previous char to '\n'*/
                   newlineFlag++;
               } else {/* if there is an operator flag or there isn't anything to add*/
@@ -333,10 +340,12 @@ make_command_stream (int (*get_next_byte) (void *),
       }
   }
 
-
+  if (subshellFlag > 0 ) printError(lineNum);
   /*add the last command*/
-  command_t com = createSimpleCommand(str);
-  commandPush(_comStack, com);
+  if (!subshellLock) {
+        command_t com = createSimpleCommand(str);
+        commandPush(_comStack, com);
+  } else { subshellLock = 0; }
   resetString(&str, &str_size, STRALLOCSIZE);
   while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
         createCommandTree(_opStack, _comStack, __op); /*create the tree from the stacks*/
