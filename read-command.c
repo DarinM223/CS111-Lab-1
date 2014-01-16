@@ -318,7 +318,7 @@ make_command_stream (int (*get_next_byte) (void *),
               lineNum++; /*increment regardless*/
               char **biwords = breakIntoWords(str);
               /*act as if the character is a newline*/
-              if (opFlag == -1 && subshellFlag == 0 && (subshellLock != 0 || (biwords != NULL && biwords[0] != NULL))) { /*if it is a complete command*/
+              if (opFlag == -1 &&  (subshellLock != 0 || (biwords != NULL && biwords[0] != NULL))) { /*if it is a complete command*/
                   prevChar = '\n'; /*set the previous char to '\n'*/
                   newlineFlag++;
               } else {/* if there is an operator flag or there isn't anything to add*/

@@ -112,27 +112,53 @@
           cat b \
         &&
           sort a
-       )
+       )<b
     ) \
   ;
     (
-       cat c \
+       cat c<d \
      ;
-       sort d
+       sort d<b
     )
 # 18
     (
+         (
+            blah z \
+          ;
+              blah d \
+            |
+              blah gg
+         )<e \
+       ||
+         (
+          ggggg
+         ) \
+     &&
        (
-          blah z \
-        ;
-            blah d \
-          |
-            blah gg
-       ) \
-     ||
-       (
-        ggggg
+          (
+             a b c \
+           &&
+             d e f
+          ) \
+        |
+          (
+           e f g h
+          )
        )
     ) \
   ;
     asdfjkl
+# 19
+  (
+       sort<a \
+     |
+       cat b - \
+     |
+       tr A-Z a-z>c \
+   ;
+       sort -k2 d -<a \
+     |
+       uniq -c>e \
+   ;
+     diff a c>f
+  )
