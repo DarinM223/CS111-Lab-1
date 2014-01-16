@@ -222,10 +222,7 @@ make_command_stream (int (*get_next_byte) (void *),
       
       else if (strchr("&|);<>", curByte)) { /*if the character is an operator*/
 
-          if ((opFlag != -1 || newlineFlag > 0) ) { /*if there is an operator flag or a newline and the current char is a operator that is not '('*/
-              /*print error*/
-              printError(lineNum);
-          } if ((curByte != '&' && curByte != '|') && (prevChar == '&' || prevChar == '|')) { /*if the character isn't '&' or '|' but the previous character was*/
+          if ((curByte != '&' && curByte != '|') && (prevChar == '&' || prevChar == '|')) { /*if the character isn't '&' or '|' but the previous character was*/
               /*print error*/
               printError(lineNum);
           }
