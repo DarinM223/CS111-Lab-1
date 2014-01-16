@@ -20,6 +20,7 @@ d |
 e < c
 y > z
 
+(cat b) < c
 
 g && h
 

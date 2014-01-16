@@ -200,11 +200,27 @@ make_command_stream (int (*get_next_byte) (void *),
                   }
                }
            }
-
+           if (curByte == '(') {
+                  if (opFlag == '<' || opFlag == '>') { /*if the operator flag is < or > */
+                          /*print error*/
+                          printError(lineNum);
+                  }
+                  char **biwords = breakIntoWords(str);
+                  if (biwords != NULL && biwords[0] != NULL ) { 
+                          command_t com = createSimpleCommand(str);
+                          commandPush(_comStack, com);
+                  }
+                  if (dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND) == 0) printError(lineNum);
+                  subshellFlag++; /*increase number of subshells*/
+                  resetString(&str, &str_size, STRALLOCSIZE);
+                  prevChar = 0;
+          }
            /* ****************************************************************************
             * handles operators &&, ||, <, >, (, and ), pushes to stack and sets op flag *
             * ****************************************************************************/
-      } else if (strchr("&|();<>", curByte)) { /*if the character is an operator*/
+      } 
+      
+      else if (strchr("&|();<>", curByte)) { /*if the character is an operator*/
 
           if ((opFlag != -1 || newlineFlag > 0) && curByte != '(') { /*if there is an operator flag or a newline and the current char is a operator that is not '('*/
               /*print error*/
@@ -243,20 +259,6 @@ make_command_stream (int (*get_next_byte) (void *),
                   commandPush(_comStack, com);
                   if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == 0) printError(lineNum);
                   opFlag = SEQUENCE_COMMAND;
-                  resetString(&str, &str_size, STRALLOCSIZE);
-                  prevChar = 0;
-          } else if (curByte == '(') {
-                  if (opFlag == '<' || opFlag == '>') { /*if the operator flag is < or > */
-                          /*print error*/
-                          printError(lineNum);
-                  }
-                  char **biwords = breakIntoWords(str);
-                  if (biwords != NULL && biwords[0] != NULL ) { 
-                          command_t com = createSimpleCommand(str);
-                          commandPush(_comStack, com);
-                  }
-                  if (dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND) == 0) printError(lineNum);
-                  subshellFlag++; /*increase number of subshells*/
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == ')') {

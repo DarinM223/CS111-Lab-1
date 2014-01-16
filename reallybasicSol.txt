@@ -15,40 +15,42 @@
   ;
     y>z
 # 3
+  (null)<c
+# 4
     g \
   &&
     h
-# 4
+# 5
       s \
     &&
       c \
   ||
     b
-# 5
+# 6
       b \
     &&
       d \
   ||
     c
-# 6
+# 7
     d \
   &&
     e \
   &&
     flag...
-# 7
+# 8
     g \
   &&
     h
-# 8
+# 9
     hello \
   ;
     world
-# 9
+# 10
     d \
   &&
     b
-# 10
+# 11
     sort -a \
   ;
       cat -d file.txt \
@@ -58,7 +60,7 @@
       blah foo \
     &&
       cat
-# 11
+# 12
     arron \
   ;
       c \
@@ -68,9 +70,9 @@
         diff -a \
       |
         e
-# 12
-  a<k>i
 # 13
+  a<k>i
+# 14
     a<b>c \
   |
     d<e>f \
