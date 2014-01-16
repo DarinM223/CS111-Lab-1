@@ -55,6 +55,7 @@ int opPush(stackOp *s, int op_type);/*works*/
 /*string functions*/
 int append(int ch, char** str, int *str_size); /*works*/
 void resetString(char** str, int *str_size, int resetCapacity);
+int isEmpty(char *str);
 
 /*command functions*/
 int isValidWordChar(char c); /*implemented*/
@@ -134,8 +135,10 @@ make_command_stream (int (*get_next_byte) (void *),
            if (prevChar == '|') { /*if the previous character was '|' */
                /*its a pipeline*/
                if (!subshellLock) {
+                       if (!isEmpty(str)) {
                         command_t com = createSimpleCommand(str);
                         commandPush(_comStack, com);
+                       } else { printError(lineNum); }
                } else { subshellLock = 0; }
                if (dealWithOperator(_opStack, _comStack, PIPE_COMMAND) == 0) printError(lineNum);
                if (isValidWordChar(curByte)) opFlag = -1; /*if curByte is a word character, then theres no need for a opFlag*/
@@ -163,8 +166,10 @@ make_command_stream (int (*get_next_byte) (void *),
                   if (newlineFlag == 1) { /*if there is only one newline*/
                      /*its a semicolon*/
                      if (!subshellLock) {
-                        command_t com = createSimpleCommand(str);
-                        commandPush(_comStack, com);
+                        if (!isEmpty(str)) {
+                                command_t com = createSimpleCommand(str);
+                                commandPush(_comStack, com);
+                        } else { printError(lineNum); }
                      } else { subshellLock = 0; }
                      if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == 0) printError(lineNum);
                      opFlag = -1;
@@ -175,8 +180,10 @@ make_command_stream (int (*get_next_byte) (void *),
                      /*add the command tree to the command stream*/
                      /*add the last command*/
                      if (!subshellLock) {
-                        command_t com = createSimpleCommand(str);
-                        commandPush(_comStack, com);
+                        if (!isEmpty(str)) {
+                                command_t com = createSimpleCommand(str);
+                                commandPush(_comStack, com);
+                        } else { printError(lineNum); }
                      } else { subshellLock = 0; }
                      resetString(&str, &str_size, STRALLOCSIZE);
                      while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
@@ -212,12 +219,6 @@ make_command_stream (int (*get_next_byte) (void *),
                           /*print error*/
                           printError(lineNum);
                   }
-                  /*char **biwords = breakIntoWords(str);*/
-                  /*if (biwords != NULL && biwords[0] != NULL ) { 
-                          command_t com = createSimpleCommand(str);
-                          commandPush(_comStack, com);
-                  }*/
-                  /*if (subshellLock) printError(lineNum);*/
                   if (dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND) == 0) printError(lineNum);
                   subshellFlag++; /*increase number of subshells*/
                   resetString(&str, &str_size, STRALLOCSIZE);
@@ -241,8 +242,10 @@ make_command_stream (int (*get_next_byte) (void *),
               if (prevChar == '&') {
                   /*its a double and*/
                   if (!subshellLock) {
-                        command_t com = createSimpleCommand(str);
-                        commandPush(_comStack, com);
+                        if (!isEmpty(str)) {
+                                command_t com = createSimpleCommand(str);
+                                commandPush(_comStack, com);
+                        } else { printError(lineNum); }
                   } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, AND_COMMAND) == 0) printError(lineNum);
                   opFlag = AND_COMMAND;
@@ -254,8 +257,10 @@ make_command_stream (int (*get_next_byte) (void *),
               if (prevChar == '|') {
                   /*its a double or*/
                   if (!subshellLock) {
-                        command_t com = createSimpleCommand(str);
-                        commandPush(_comStack, com);
+                        if (!isEmpty(str)) {
+                                command_t com = createSimpleCommand(str);
+                                commandPush(_comStack, com);
+                        } else { printError(lineNum); }
                   } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, OR_COMMAND) == 0) printError(lineNum);
                   opFlag = OR_COMMAND;
@@ -265,8 +270,10 @@ make_command_stream (int (*get_next_byte) (void *),
                   prevChar = '|';
           } else if (curByte == ';') { /* if the character is the ';' character */
                   if (!subshellLock) {
-                        command_t com = createSimpleCommand(str);
-                        commandPush(_comStack, com);
+                        if (!isEmpty(str)) {
+                                command_t com = createSimpleCommand(str);
+                                commandPush(_comStack, com);
+                        } else { printError(lineNum); }
                   } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == 0) printError(lineNum);
                   opFlag = SEQUENCE_COMMAND;
@@ -274,8 +281,10 @@ make_command_stream (int (*get_next_byte) (void *),
                   prevChar = 0;
           } else if (curByte == ')') {
                   if (!subshellLock) {
-                        command_t com = createSimpleCommand(str);
-                        commandPush(_comStack, com);
+                        if (!isEmpty(str)) {
+                                command_t com = createSimpleCommand(str);
+                                commandPush(_comStack, com);
+                        } else { printError(lineNum); }
                   } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, END_SUBSHELL_COMMAND) == 0) printError(lineNum);
                   subshellFlag--;
@@ -284,8 +293,10 @@ make_command_stream (int (*get_next_byte) (void *),
                   prevChar = 0;
           } else if (curByte == '<') {
                   if (!subshellLock) {
-                        command_t com = createSimpleCommand(str);
-                        commandPush(_comStack, com);
+                        if (!isEmpty(str)) {
+                                command_t com = createSimpleCommand(str);
+                                commandPush(_comStack, com);
+                        } else { printError(lineNum); }
                   } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, LEFT_REDIRECT) == 0) printError(lineNum);
                   opFlag = LEFT_REDIRECT;
@@ -293,8 +304,10 @@ make_command_stream (int (*get_next_byte) (void *),
                   prevChar = 0;
           } else if (curByte == '>') {
                   if (!subshellLock) {
-                        command_t com = createSimpleCommand(str);
-                        commandPush(_comStack, com);
+                        if (!isEmpty(str)) {
+                                command_t com = createSimpleCommand(str);
+                                commandPush(_comStack, com);
+                        } else { printError(lineNum); }
                   } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT) == 0) printError(lineNum);
                   opFlag = RIGHT_REDIRECT;
@@ -316,9 +329,8 @@ make_command_stream (int (*get_next_byte) (void *),
                       printError(lineNum);
               }
               lineNum++; /*increment regardless*/
-              char **biwords = breakIntoWords(str);
               /*act as if the character is a newline*/
-              if (opFlag == -1 &&  (subshellLock != 0 || (biwords != NULL && biwords[0] != NULL))) { /*if it is a complete command*/
+              if (opFlag == -1 &&  (subshellLock != 0 || (!isEmpty(str)))) { /*if it is a complete command*/
                   prevChar = '\n'; /*set the previous char to '\n'*/
                   newlineFlag++;
               } else {/* if there is an operator flag or there isn't anything to add*/
@@ -343,8 +355,10 @@ make_command_stream (int (*get_next_byte) (void *),
   if (subshellFlag > 0 ) printError(lineNum);
   /*add the last command*/
   if (!subshellLock) {
-        command_t com = createSimpleCommand(str);
-        commandPush(_comStack, com);
+        if (!isEmpty(str)) {
+                command_t com = createSimpleCommand(str);
+                commandPush(_comStack, com);
+        } else { printError(lineNum); }
   } else { subshellLock = 0; }
   resetString(&str, &str_size, STRALLOCSIZE);
   while ((__op = opPop(_opStack)) != -1) { /*while there are still operators in the stack*/
@@ -510,6 +524,20 @@ void resetString(char **str, int *str_size, int resetCapacity) {
         *str_size = resetCapacity;
         (*str)[0] = '\0';
 }
+
+/*returns 0 if string is not empty, 1 if it is*/
+int isEmpty(char *str) {
+        int retVal = 1;
+        int i;
+        int size = strlen(str);
+        for (i = 0; i < size; i++) {
+                if (isValidWordChar(str[i])) {
+                        retVal = 0; /*it isn't empty*/
+                }
+        }
+        return retVal;
+}
+
 
 /* ************************* *
  * Operation stack functions *
