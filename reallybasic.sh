@@ -4,7 +4,13 @@
 # b & #causes syntax error
 # c
 
-b&&c <d
+#a < #causes syntax error
+#c
+
+#a && b >       #causes syntax error
+#c
+
+c-3p0&&c <d
 f
 
    	 			
@@ -37,11 +43,14 @@ world
        		
 d && b
 
+
 sort -a ; cat -d file.txt && blah -c -d foo < cat #hello!
 blah foo&& cat
       		
 arron ; c && blah<d && #hello
 diff -a |	 e
 
+a<b>c<d>e>f<g>h>i<j<k
 
+a<b>c|d<e>f|g<h>i
 

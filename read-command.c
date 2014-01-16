@@ -292,6 +292,9 @@ make_command_stream (int (*get_next_byte) (void *),
                              curByte = get_next_byte(get_next_byte_argument);
                      } while (curByte != '\n' && curByte != EOF);
               }
+              if (opFlag == LEFT_REDIRECT || opFlag == RIGHT_REDIRECT) { /*if a newline follows a redirect*/
+                      printError(lineNum);
+              }
               lineNum++; /*increment regardless*/
               char **biwords = breakIntoWords(str);
               /*act as if the character is a newline*/
@@ -731,6 +734,6 @@ int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type)
 
 void printError(int lineNum) {
        fprintf(stderr, "%d: syntax error!!!\n", lineNum); 
-*      exit(1); /*comment this out to debug*/
+      exit(1); /*comment this out to debug*/
 }
 
