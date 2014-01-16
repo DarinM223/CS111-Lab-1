@@ -15,7 +15,9 @@
   ;
     y>z
 # 3
-  (null)<c
+  (
+   cat b
+  )<c
 # 4
     g \
   &&
@@ -78,3 +80,23 @@
     d<e>f \
   |
     g<h>i
+# 15
+  (
+     cat a \
+   &&
+     sort b
+  )<b
+# 16
+  (
+     (
+        cat a \
+      &&
+        sort b
+     ) \
+   ||
+     (
+        cat b \
+      &&
+        sort a
+     )
+  )<b

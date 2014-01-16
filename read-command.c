@@ -111,6 +111,7 @@ make_command_stream (int (*get_next_byte) (void *),
   resetString(&str, &str_size, STRALLOCSIZE);
   str = (char*)checked_malloc(str_size*sizeof(char));
   int subshellFlag = 0;
+  int subshellLock = 0;
   int opFlag = -1;
   int newlineFlag = 0;
   int __op;
@@ -232,8 +233,10 @@ make_command_stream (int (*get_next_byte) (void *),
           if (curByte == '&') {
               if (prevChar == '&') {
                   /*its a double and*/
-                  command_t com = createSimpleCommand(str);
-                  commandPush(_comStack, com);
+                  if (!subshellLock) {
+                        command_t com = createSimpleCommand(str);
+                        commandPush(_comStack, com);
+                  } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, AND_COMMAND) == 0) printError(lineNum);
                   opFlag = AND_COMMAND;
                   resetString(&str, &str_size, STRALLOCSIZE);
@@ -243,8 +246,10 @@ make_command_stream (int (*get_next_byte) (void *),
           }  else if (curByte == '|') {
               if (prevChar == '|') {
                   /*its a double or*/
-                  command_t com = createSimpleCommand(str);
-                  commandPush(_comStack, com);
+                  if (!subshellLock) {
+                        command_t com = createSimpleCommand(str);
+                        commandPush(_comStack, com);
+                  } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, OR_COMMAND) == 0) printError(lineNum);
                   opFlag = OR_COMMAND;
                   resetString(&str, &str_size, STRALLOCSIZE);
@@ -252,29 +257,38 @@ make_command_stream (int (*get_next_byte) (void *),
               } else
                   prevChar = '|';
           } else if (curByte == ';') { /* if the character is the ';' character */
-                  command_t com = createSimpleCommand(str);
-                  commandPush(_comStack, com);
+                  if (!subshellLock) {
+                        command_t com = createSimpleCommand(str);
+                        commandPush(_comStack, com);
+                  } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == 0) printError(lineNum);
                   opFlag = SEQUENCE_COMMAND;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == ')') {
-                  command_t com = createSimpleCommand(str);
-                  commandPush(_comStack, com);
+                  if (!subshellLock) {
+                        command_t com = createSimpleCommand(str);
+                        commandPush(_comStack, com);
+                  } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, END_SUBSHELL_COMMAND) == 0) printError(lineNum);
                   subshellFlag--;
+                  subshellLock = 1;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == '<') {
-                  command_t com = createSimpleCommand(str);
-                  commandPush(_comStack, com);
+                  if (!subshellLock) {
+                        command_t com = createSimpleCommand(str);
+                        commandPush(_comStack, com);
+                  } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, LEFT_REDIRECT) == 0) printError(lineNum);
                   opFlag = LEFT_REDIRECT;
                   resetString(&str, &str_size, STRALLOCSIZE);
                   prevChar = 0;
           } else if (curByte == '>') {
-                  command_t com = createSimpleCommand(str);
-                  commandPush(_comStack, com);
+                  if (!subshellLock) {
+                        command_t com = createSimpleCommand(str);
+                        commandPush(_comStack, com);
+                  } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT) == 0) printError(lineNum);
                   opFlag = RIGHT_REDIRECT;
                   resetString(&str, &str_size, STRALLOCSIZE);

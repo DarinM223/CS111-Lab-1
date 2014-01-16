@@ -55,3 +55,6 @@ a<b>c<d>e>f<g>h>i<j<k
 
 a<b>c|d<e>f|g<h>i
 
+(cat a && sort b) < b
+
+( (cat a && sort b) || (cat b && sort a) ) < b
