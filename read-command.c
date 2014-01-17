@@ -66,6 +66,10 @@ int createCommandTree(stackOp* op_stack, stackCom* com_stack, int com_type);
 char** breakIntoWords(char* str); /*works*/
 command_t createSimpleCommand(char *str); /* don't forget to break words up! Also resize!!*/ /*works*/
 
+/*free command functions*/
+void freeCommandTree(command_t com);
+void freeCommandStream(command_stream_t stream);
+
 void printError(int lineNum);
 
 enum command_type2 {
@@ -662,7 +666,6 @@ int createCommandTree(stackOp *op_stack, stackCom *com_stack, int com_type)
             }
             }
             break;
-            /* remember to free simple command */
         case LEFT_REDIRECT:
         case RIGHT_REDIRECT:
             {
@@ -676,6 +679,7 @@ int createCommandTree(stackOp *op_stack, stackCom *com_stack, int com_type)
                 else
                     popped_com->output = redir->u.word[0];
                 commandPush(com_stack, popped_com);
+		freeCommandTree(redir); /* free simple command */
             }
             else
                 return 0;
@@ -725,13 +729,18 @@ int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type)
         case RIGHT_REDIRECT:
             {
             int top = opPeek(op_stack);
-            while (flag && ( (top == LEFT_REDIRECT) || (top == RIGHT_REDIRECT) ) ) 
-            {
-                int popped_op = opPop(op_stack);
-                flag = createCommandTree(op_stack, com_stack, popped_op);
-                top = opPeek(op_stack);
-            }
-            opPush(op_stack, op_type);
+	    if (top != LEFT_REDIRECT && top != RIGHT_REDIRECT) /* not preceded by < or > */
+	    {
+		opPush(op_stack, op_type);
+	    }
+            else if (op_type == RIGHT_REDIRECT && top == LEFT_REDIRECT) /* <a >b */
+	    {
+	    	int popped_op = opPop(op_stack);
+		flag = createCommandTree(op_stack, com_stack, popped_op);
+		opPush(op_stack, op_type);
+	    }
+	    else 
+	    	flag = 0;
             }
             break;
         case PIPE_COMMAND:
@@ -781,6 +790,57 @@ int dealWithOperator(stackOp *op_stack, stackCom *com_stack, int op_type)
     return flag;
 }
 
+void freeCommandTree(command_t com)
+{
+    if (!com)
+    {
+	printf("Tried to free NULL!"); /* for testing */
+	return;
+    }
+    /* free input/output words */
+    if (com->input)
+    	free(com->input);
+    if (com->output)
+    	free(com->output);
+
+    switch (com->type)
+    {
+    	/* binary operators*/
+    	case AND_COMMAND:
+	case OR_COMMAND:
+	case SEQUENCE_COMMAND:
+	case PIPE_COMMAND:
+	  {
+	      freeCommandTree(com->u.command[0]);
+	      freeCommandTree(com->u.command[1]);
+	  }
+	  break;
+	case SIMPLE_COMMAND:
+	  {
+	      int i = 0;
+	      while(com->u.word[i])
+	      {
+	          free(com->u.word[i]);
+		  i++;
+	      }
+	  }
+	  break;
+	case SUBSHELL_COMMAND:
+	  {
+	      freeCommandTree(com->u.subshell_command);
+	  }
+	  break;
+    }
+    free(com);
+}
+
+void freeCommandStream(command_stream_t stream)
+{
+    int i;
+    for(i = 0; i < stream->size; i++) /* free each commandTree */
+    	freeCommandTree(stream->commands[i]);
+    free(stream);
+}
 
 void printError(int lineNum) {
        fprintf(stderr, "%d: syntax error!!!\n", lineNum); 
