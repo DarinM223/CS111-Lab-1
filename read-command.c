@@ -470,6 +470,9 @@ char** breakIntoWords(char* str) {
 command_t createSimpleCommand(char *str) { /* don't forget to break words up! Also resize!!*/
       command_t com = checked_malloc(sizeof(struct command));
       com->type = SIMPLE_COMMAND;
+      com->input = NULL;
+      com->output = NULL;
+      com->status = -1;
       char **a = breakIntoWords(str);
       com->u.word = a;
       return com;

@@ -59,14 +59,13 @@ diff -a |	 e
 
 ( (cat a && sort b) && #hello!
 (cat b && sort a) < b)
-(cat c < d ; sort d < b) 
+(cat c < d ; sort d < b)
 
 ( (blah z ; blah d | blah gg) < e ||
   	(ggggg) && ( ( a b c && d e f ) | (e f g h) ) )
+
+
 asdfjkl
 
 
 
- #(sort < a | cat b - | tr A-Z a-z > c #test from assignment page
-   #sort -k2 d - < a | uniq -c > e
-   #diff a c > f)
