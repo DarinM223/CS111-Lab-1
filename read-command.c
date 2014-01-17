@@ -239,7 +239,7 @@ make_command_stream (int (*get_next_byte) (void *),
               /*print error*/
               printError(lineNum);
           }
-          /*if (prevChar == '\n') printError(lineNum);*/
+          if (prevChar == '\n') printError(lineNum);
 
 
           if (curByte == '&') {
@@ -679,7 +679,9 @@ int createCommandTree(stackOp *op_stack, stackCom *com_stack, int com_type)
                 else
                     popped_com->output = redir->u.word[0];
                 commandPush(com_stack, popped_com);
-		freeCommandTree(redir); /* free simple command */
+		/* free simple command */
+		free(redir->u.word);
+		free(redir);
             }
             else
                 return 0;
