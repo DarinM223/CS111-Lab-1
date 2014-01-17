@@ -1,68 +1,68 @@
 # 1
-      c-3p0 \
-    &&
-      c<d \
-  ;
-    f
+    c-3p0 \
+  &&
+    c<d
 # 2
-        b \
-      &&
-        c \
-    ||
-        d \
-      |
-        e<c \
-  ;
-    y>z
+  f
 # 3
+      b \
+    &&
+      c \
+  ||
+      d \
+    |
+      e<c
+# 4
+  y>z
+# 5
   (
    cat b
   )<c
-# 4
+# 6
     g \
   &&
     h
-# 5
+# 7
       s \
     &&
       c \
   ||
     b
-# 6
+# 8
       b \
     &&
       d \
   ||
     c
-# 7
+# 9
     d \
   &&
     e \
   &&
     flag...
-# 8
+# 10
     g \
   &&
     h
-# 9
-    hello \
-  ;
-    world
-# 10
+# 11
+  hello
+# 12
+  world
+# 13
     d \
   &&
     b
-# 11
+# 14
     sort -a \
   ;
       cat -d file.txt \
     &&
-      blah -c -d foo<cat \
-  ;
-      blah foo \
-    &&
-      cat
-# 12
+      blah -c -d foo<cat
+# 15
+    blah foo \
+  &&
+    cat
+# 16
     arron \
   ;
       c \
@@ -72,21 +72,13 @@
         diff -a \
       |
         e
-# 13
-  a<k>i
-# 14
-    a<b>c \
-  |
-    d<e>f \
-  |
-    g<h>i
-# 15
+# 17
   (
      cat a \
    &&
      sort b
   )<b
-# 16
+# 18
   (
      (
         cat a \
@@ -100,65 +92,51 @@
         sort a
      )
   )<b
-# 17
-    (
-       (
-          cat a \
-        &&
-          sort b
-       ) \
-     &&
-       (
-          cat b \
-        &&
-          sort a
-       )<b
-    ) \
-  ;
-    (
-       cat c<d \
-     ;
-       sort d<b
-    )
-# 18
-    (
-         (
-            blah z \
-          ;
-              blah d \
-            |
-              blah gg
-         )<e \
-       ||
-         (
-          ggggg
-         ) \
-     &&
-       (
-          (
-             a b c \
-           &&
-             d e f
-          ) \
-        |
-          (
-           e f g h
-          )
-       )
-    ) \
-  ;
-    asdfjkl
 # 19
   (
-       sort<a \
-     |
-       cat b - \
-     |
-       tr A-Z a-z>c \
-   ;
-       sort -k2 d -<a \
-     |
-       uniq -c>e \
-   ;
-     diff a c>f
+     (
+        cat a \
+      &&
+        sort b
+     ) \
+   &&
+     (
+        cat b \
+      &&
+        sort a
+     )<b
   )
+# 20
+  (
+     cat c<d \
+   ;
+     sort d<b
+  )
+# 21
+  (
+       (
+          blah z \
+        ;
+            blah d \
+          |
+            blah gg
+       )<e \
+     ||
+       (
+        ggggg
+       ) \
+   &&
+     (
+        (
+           a b c \
+         &&
+           d e f
+        ) \
+      |
+        (
+         e f g h
+        )
+     )
+  )
+# 22
+  asdfjkl<>

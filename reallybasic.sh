@@ -51,9 +51,6 @@ blah foo&& cat
 arron ; c && blah<d && #hello
 diff -a |	 e
 
-a<b>c<d>e>f<g>h>i<j<k
-
-a<b>c|d<e>f|g<h>i
 
 (cat a && sort b) < b
 
@@ -70,6 +67,6 @@ asdfjkl
 
 
 
-  (sort < a | cat b - | tr A-Z a-z > c #test from assignment page
-   sort -k2 d - < a | uniq -c > e
-   diff a c > f)
+ #(sort < a | cat b - | tr A-Z a-z > c #test from assignment page
+   #sort -k2 d - < a | uniq -c > e
+   #diff a c > f)

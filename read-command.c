@@ -118,7 +118,6 @@ make_command_stream (int (*get_next_byte) (void *),
   int subshellFlag = 0;
   int subshellLock = 0;
   int opFlag = -1;
-  int newlineFlag = 0;
   int __op;
   /*if op flag is set
    * if a word char or a beginning subshell is next readed char then reset op flag
@@ -167,20 +166,6 @@ make_command_stream (int (*get_next_byte) (void *),
                     /*continue*/
                     continue;
                }  else {
-                  if (newlineFlag == 1) { /*if there is only one newline*/
-                     /*its a semicolon*/
-                     if (!subshellLock) {
-                        if (!isEmpty(str)) {
-                                command_t com = createSimpleCommand(str);
-                                commandPush(_comStack, com);
-                        } else { printError(lineNum); }
-                     } else { subshellLock = 0; }
-                     if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == 0) printError(lineNum);
-                     opFlag = -1;
-                     resetString(&str, &str_size, STRALLOCSIZE);
-                     prevChar = 0;
-                     newlineFlag = 0;
-                  } else if (newlineFlag > 1) { /*if there is more than one newline*/
                      /*add the command tree to the command stream*/
                      /*add the last command*/
                      if (!subshellLock) {
@@ -211,11 +196,6 @@ make_command_stream (int (*get_next_byte) (void *),
                           stream->size++;
                      }
 		     prevChar = 0; /*reset the previous char back to 0*/
-                     newlineFlag = 0;
-                  } else { /*if there is 0 or less newlines*/
-                      /*print error*/
-                      printError(lineNum);
-                  }
                }
            }
            if (curByte == '(') {
@@ -320,7 +300,7 @@ make_command_stream (int (*get_next_byte) (void *),
           }
 
           /* ***************************************************************************************************************
-           * deals with '\n', adds line number, increments newlineFlag, and sets prevChar to '\n' to be handled at the top,
+           * deals with '\n', adds line number, and sets prevChar to '\n' to be handled at the top,
            * and ignores incomplete commands
            * ***************************************************************************************************************/
       } else if (curByte == '\n' || curByte == '#') { /*if c is a newline or comment*/
@@ -336,7 +316,6 @@ make_command_stream (int (*get_next_byte) (void *),
               /*act as if the character is a newline*/
               if (opFlag == -1 &&  (subshellLock != 0 || (!isEmpty(str)))) { /*if it is a complete command*/
                   prevChar = '\n'; /*set the previous char to '\n'*/
-                  newlineFlag++;
               } else {/* if there is an operator flag or there isn't anything to add*/
                       /*do nothing*/
                       continue;
