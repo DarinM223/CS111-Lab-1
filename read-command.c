@@ -166,6 +166,19 @@ make_command_stream (int (*get_next_byte) (void *),
                     /*continue*/
                     continue;
                }  else {
+                     if (subshellFlag > 0) {
+                        /*its a semicolon*/
+                     	if (!subshellLock) {
+                        	if (!isEmpty(str)) {
+                                	command_t com = createSimpleCommand(str);
+                                	commandPush(_comStack, com);
+                        	} else { printError(lineNum); }
+                     	} else { subshellLock = 0; }
+                     	if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == 0) printError(lineNum);
+                     	opFlag = -1;
+                     	resetString(&str, &str_size, STRALLOCSIZE);
+                        prevChar = 0;
+                     } else {
                      /*add the command tree to the command stream*/
                      /*add the last command*/
                      if (!subshellLock) {
@@ -196,6 +209,7 @@ make_command_stream (int (*get_next_byte) (void *),
                           stream->size++;
                      }
 		     prevChar = 0; /*reset the previous char back to 0*/
+               }
                }
            }
            if (curByte == '(') {
