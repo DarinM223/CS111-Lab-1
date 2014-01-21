@@ -17,7 +17,15 @@ command_status (command_t c)
 {
   return c->status;
 }
-char **currentlyUsedInputFiles;
+
+typedef struct _used_file_list {
+        char **_files;
+        int size;
+        int capacity;
+} used_file_list;
+void initFileList(used_file_list *list);
+void addFile(used_file_list *list, char *file);
+int searchForFile(used_file_list *list, char *file) ;
 
 void execute(command_t comm);
 void executeAnd(command_t comm);
@@ -100,3 +108,19 @@ void executeSequence(command_t comm ) {
         }
 }
 
+void executeSimple(command_t comm) {
+        /*TODO: deal with IO first*/
+        int stat1 = fork();
+        if (stat1 < 0) return;
+        else if (stat1 > 0) {
+                /*its a parent*/
+                /*wait for child process to finish*/
+                int stat2;
+                wait(&stat2);
+        } else if (stat1 == 0) {
+                /*its a child*/
+                /*use exec to execute (terminated by NULL)*/
+                /*executes command*/
+                execvp(*comm->u.word, comm->u.word);
+        }
+}
