@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/wait.h> 
 #include <unistd.h>  
+#include <stdio.h>
 #include <stdlib.h>  
 #include <error.h>
 
@@ -68,6 +69,7 @@ void execute(command_t comm ) {
                     executeSimple(comm );                    
                     break;
                 case SUBSHELL_COMMAND:
+                    execute(comm->u.subshell_command);
                     break;
         }
 }
@@ -122,5 +124,23 @@ void executeSimple(command_t comm) {
                 /*use exec to execute (terminated by NULL)*/
                 /*executes command*/
                 execvp(*comm->u.word, comm->u.word);
+        }
+}
+void executePipe(command_t comm) {
+        int pc[2];
+        if (pipe(pc) < 0) return;
+        int pid = fork();
+        if (pid == 0) {
+                dup2(pc[1], 1 ); /*make stdout come to write area to pipe*/
+                close(pc[0]);
+                executeSimple(comm->u.command[0]); /*read from left hand command*/
+                close(pc[1]);
+        } else {
+                dup2(pc[0], 0); /*make stdin come to read area of pipe*/
+                close(pc[1]);
+                executeSimple(comm->u.command[1]); /*write to right hand command*/
+                close(pc[0]);
+                int status;
+                wait(&status);
         }
 }
