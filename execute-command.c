@@ -119,6 +119,7 @@ void executeSimple(command_t comm) {
                 /*wait for child process to finish*/
                 int stat2;
                 wait(&stat2);
+                comm->status = stat2;
         } else if (stat1 == 0) {
                 /*its a child*/
                 /*use exec to execute (terminated by NULL)*/
@@ -142,5 +143,6 @@ void executePipe(command_t comm) {
                 close(pc[0]);
                 int status;
                 wait(&status);
+                comm->status = status;
         }
 }
