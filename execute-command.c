@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>  
 #include <error.h>
+#include <fcntl.h>
 
 /* FIXME: You may need to add #include directives, macro definitions,
    static function definitions, etc.  */
@@ -117,24 +118,44 @@ void executeSequence(command_t comm ) {
 }
 
 void executeSimple(command_t comm) {
-        /*TODO: deal with IO first*/
+        
+	/* deal with redirection */
+        int stdin_dup = dup(STDIN_FILENO);
+        int stdout_dup = dup(STDOUT_FILENO);
+        int fd0, fd1;
+        if (comm->input != NULL)
+        {
+                fd0 = open(comm->input, O_RDONLY);
+                dup2(fd0, STDIN_FILENO);
+                close(fd0);
+        }
+        if (comm->output != NULL)
+        {
+                fd1 = open(comm->output, O_WRONLY | O_CREAT, 0644);
+                dup2(fd1, STDOUT_FILENO);
+                close(fd1);
+        }
+
         int stat1 = fork();
         if (stat1 < 0) return;
         else if (stat1 > 0) {
                 /*its a parent*/
                 /*wait for child process to finish*/
                 int stat2;
-                if (wait(&stat2) == -1) printCommandError();
+                wait(&stat2);
                 comm->status = stat2;
         } else if (stat1 == 0) {
                 /*its a child*/
                 /*use exec to execute (terminated by NULL)*/
                 /*executes command*/
                 execvp(*comm->u.word, comm->u.word);
-        } else {
-                printCommandError();
         }
+
+	/* restore STDIN, STDOUT */
+        dup2(stdin_dup, 0);
+        dup2(stdout_dup, 1);
 }
+
 void executePipe(command_t comm) {
         int pc[2];
         if (pipe(pc) < 0) return;
