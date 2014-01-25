@@ -39,6 +39,12 @@ void executePipe(command_t comm); /*use the C pipe() function*/
 void executeSimple(command_t comm);
 void dealWithRedirection(command_t comm); /*use the C open() function*/
 
+void printCommandError() {
+       fprintf(stderr, ":( Your PC ran into a problem and needs to restart. Your hard drive will be wiped out shortly. If you like to know more you can search online for this error: HAL9000_IM_SORRY_DAVE \n"); 
+      exit(1); /*comment this out to debug*/
+}
+
+
 int TIMETRAVEL=0; /*Time travel is a preset option before running the program so it can be global?*/
 
 void
@@ -118,13 +124,15 @@ void executeSimple(command_t comm) {
                 /*its a parent*/
                 /*wait for child process to finish*/
                 int stat2;
-                wait(&stat2);
+                if (wait(&stat2) == -1) printCommandError();
                 comm->status = stat2;
         } else if (stat1 == 0) {
                 /*its a child*/
                 /*use exec to execute (terminated by NULL)*/
                 /*executes command*/
                 execvp(*comm->u.word, comm->u.word);
+        } else {
+                printCommandError();
         }
 }
 void executePipe(command_t comm) {
@@ -132,17 +140,19 @@ void executePipe(command_t comm) {
         if (pipe(pc) < 0) return;
         int pid = fork();
         if (pid == 0) {
-                dup2(pc[1], 1 ); /*make stdout come to write area to pipe*/
+                if (dup2(pc[1], 1 ) == -1) printCommandError(); /*make stdout come to write area to pipe*/
                 close(pc[0]);
                 executeSimple(comm->u.command[0]); /*read from left hand command*/
                 close(pc[1]);
-        } else {
-                dup2(pc[0], 0); /*make stdin come to read area of pipe*/
+        } else if (pid > 0) {
+                if (dup2(pc[0], 0) == -1) printCommandError(); /*make stdin come to read area of pipe*/
                 close(pc[1]);
                 executeSimple(comm->u.command[1]); /*write to right hand command*/
                 close(pc[0]);
                 int status;
-                wait(&status);
+                if (wait(&status) == -1) printCommandError();
                 comm->status = status;
+        } else {
+                printCommandError();
         }
 }
