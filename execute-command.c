@@ -10,6 +10,7 @@
 #include <stdlib.h>  
 #include <error.h>
 #include <fcntl.h>
+#include <string.h>
 
 /* FIXME: You may need to add #include directives, macro definitions,
    static function definitions, etc.  */
@@ -38,6 +39,7 @@ void executeSequence(command_t comm);
 
 void executePipe(command_t comm); /*use the C pipe() function*/
 void executeSimple(command_t comm);
+void executeSubshell(command_t comm);
 void dealWithRedirection(command_t comm); /*use the C open() function*/
 
 void printCommandError() {
@@ -76,7 +78,7 @@ void execute(command_t comm ) {
                     executeSimple(comm );                    
                     break;
                 case SUBSHELL_COMMAND:
-                    execute(comm->u.subshell_command);
+                    executeSubshell(comm);
                     break;
         }
 }
@@ -148,7 +150,10 @@ void executeSimple(command_t comm) {
                 /*its a child*/
                 /*use exec to execute (terminated by NULL)*/
                 /*executes command*/
-                execvp(*comm->u.word, comm->u.word);
+		if (strcmp(comm->u.word[0], "exec") == 0) /* special case exec */ 
+			execvp(comm->u.word[1], comm->u.word+1); /* use second word as filename */
+		else
+                	execvp(*comm->u.word, comm->u.word);
         }
 
 	/* restore STDIN, STDOUT */
@@ -163,12 +168,12 @@ void executePipe(command_t comm) {
         if (pid == 0) {
                 if (dup2(pc[1], 1 ) == -1) printCommandError(); /*make stdout come to write area to pipe*/
                 close(pc[0]);
-                executeSimple(comm->u.command[0]); /*read from left hand command*/
+                execute(comm->u.command[0]); /*read from left hand command*/
                 close(pc[1]);
         } else if (pid > 0) {
                 if (dup2(pc[0], 0) == -1) printCommandError(); /*make stdin come to read area of pipe*/
                 close(pc[1]);
-                executeSimple(comm->u.command[1]); /*write to right hand command*/
+                execute(comm->u.command[1]); /*write to right hand command*/
                 close(pc[0]);
                 int status;
                 if (wait(&status) == -1) printCommandError();
@@ -177,3 +182,50 @@ void executePipe(command_t comm) {
                 printCommandError();
         }
 }
+
+void executeSubshell(command_t comm) 
+{
+	/* deal with I/O */
+	if (comm->input != NULL)	
+	{
+		int fd = open(comm->input, O_RDONLY);
+		if (fd == -1)
+			perror(comm->input);
+		close(fd);
+		command_t first = comm->u.subshell_command;
+		while(first->type != SIMPLE_COMMAND)
+        	{
+                	if (first->type == SUBSHELL_COMMAND)
+			{
+                        	executeSubshell(first);
+				break;
+			}		
+                	else
+                        	first = first->u.command[0];
+        	}
+		if (first->input == NULL)
+			first->input = comm->input; 
+	}
+	if (comm->output != NULL)
+	{
+                int fd = open(comm->output, O_WRONLY | O_CREAT, 0644);
+                if (fd == -1)
+                        perror(comm->output);
+                close(fd);
+		command_t last = comm->u.subshell_command;
+		while(last->type != SIMPLE_COMMAND)
+	        {
+        	        if (last->type == SUBSHELL_COMMAND)
+			{
+                	        executeSubshell(last);
+				break;
+			}
+               		else
+                       	 	last = last->u.command[1];
+        	}
+		if (last->output == NULL)
+			last->output = comm->output;
+	}
+	execute(comm->u.subshell_command);
+}
+

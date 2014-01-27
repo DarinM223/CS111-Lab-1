@@ -667,6 +667,7 @@ int createCommandTree(stackOp *op_stack, stackCom *com_stack, int com_type)
             {
             command_t redir = commandPop(com_stack); /* input/output */
             command_t popped_com = commandPop(com_stack); /* incident command */
+	    popped_com->input = popped_com->output = 0;
             if (redir && popped_com && redir->type == SIMPLE_COMMAND
                 && redir->u.word[1] == NULL) /* input/output has to be 1-word SIMPLE_COMMAND */
             {
