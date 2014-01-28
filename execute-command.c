@@ -42,8 +42,9 @@ void executeSimple(command_t comm);
 void executeSubshell(command_t comm);
 void dealWithRedirection(command_t comm); /*use the C open() function*/
 
-void printCommandError() {
-       fprintf(stderr, ":( Your PC ran into a problem and needs to restart. Your hard drive will be wiped out shortly. If you like to know more you can search online for this error: HAL9000_IM_SORRY_DAVE \n"); 
+void printCommandError(char* msg) {
+/*       fprintf(stderr, ":( Your PC ran into a problem and needs to restart. Your hard drive will be wiped out shortly. If you like to know more you can search online for this error: HAL9000_IM_SORRY_DAVE \n"); */
+      perror(msg);
       exit(1); /*comment this out to debug*/
 }
 
@@ -120,27 +121,28 @@ void executeSequence(command_t comm ) {
 }
 
 void executeSimple(command_t comm) {
-        
 	/* deal with redirection */
-        int stdin_dup = dup(STDIN_FILENO);
-        int stdout_dup = dup(STDOUT_FILENO);
-        int fd0, fd1;
+	int stdin_dup, stdout_dup;
+        if ((stdin_dup = dup(STDIN_FILENO)) == -1) printCommandError("dup");
+        if ((stdout_dup = dup(STDOUT_FILENO)) == -1) printCommandError("dup");
+        
+	int fd0, fd1;
         if (comm->input != NULL)
         {
-                fd0 = open(comm->input, O_RDONLY);
-                dup2(fd0, STDIN_FILENO);
+                if ((fd0 = open(comm->input, O_RDONLY)) == -1) printCommandError("open"); 
+                if (dup2(fd0, STDIN_FILENO) == -1) printCommandError("dup2");
                 close(fd0);
         }
         if (comm->output != NULL)
         {
-                fd1 = open(comm->output, O_WRONLY | O_CREAT, 0644);
-                dup2(fd1, STDOUT_FILENO);
+                if ((fd1 = open(comm->output, O_WRONLY | O_CREAT, 0644)) == -1) printCommandError("open");
+                if (dup2(fd1, STDOUT_FILENO) == -1) printCommandError("dup2");
                 close(fd1);
         }
 
-        int stat1 = fork();
-        if (stat1 < 0) return;
-        else if (stat1 > 0) {
+        int stat1;
+	if ((stat1 = fork()) < 0)  printCommandError("fork");
+        if (stat1 > 0) {
                 /*its a parent*/
                 /*wait for child process to finish*/
                 int stat2;
@@ -157,39 +159,47 @@ void executeSimple(command_t comm) {
         }
 
 	/* restore STDIN, STDOUT */
-        dup2(stdin_dup, 0);
-        dup2(stdout_dup, 1);
+        if (dup2(stdin_dup, 0) == -1) printCommandError("dup2");
+        if (dup2(stdout_dup, 1) == -1) printCommandError("dup2");
+	close(stdin_dup);
+	close(stdout_dup);
 }
 
 void executePipe(command_t comm) {
-        int stdin_dup = dup(STDIN_FILENO);
-        int stdout_dup = dup(STDOUT_FILENO);
+	/* deal with redirection */
+        int stdin_dup, stdout_dup;
+        if ((stdin_dup = dup(STDIN_FILENO)) == -1) printCommandError("dup");
+        if ((stdout_dup = dup(STDOUT_FILENO)) == -1) printCommandError("dup");
 
         int pc[2];
-        if (pipe(pc) < 0) return;
+        if (pipe(pc) < 0) printCommandError("pipe");
         int pid = fork();
         if (pid == 0) {
-                if (dup2(pc[1], 1 ) == -1) printCommandError(); /*make stdout come to write area to pipe*/
+                if (dup2(pc[1], 1 ) == -1) printCommandError("dup2"); /*make stdout come to write area to pipe*/
                 close(pc[0]);
                 execute(comm->u.command[0]); /*read from left hand command*/
                 close(pc[1]);
+		exit(comm->u.command[0]->status);
         } else if (pid > 0) {
 		int status;
-		if(wait(&status) == -1) printCommandError();
-                if (dup2(pc[0], 0) == -1) printCommandError(); /*make stdin come to read area of pipe*/
+		if(wait(&status) == -1) printCommandError("wait");
+                if (dup2(pc[0], 0) == -1) printCommandError("dup2"); /*make stdin come to read area of pipe*/
                 close(pc[1]);
                 execute(comm->u.command[1]); /*write to right hand command*/
                 close(pc[0]);
                 //int status;
                 //if (wait(&status) == -1) printCommandError();
-                //comm->status = status;
+                comm->status = comm->u.command[1]->status;
         } else {
-                printCommandError();
+                printCommandError("fork");
         }
 
         /* restore STDIN, STDOUT */
-        dup2(stdin_dup, 0);
-        dup2(stdout_dup, 1);
+        if (dup2(stdin_dup, 0) == -1) printCommandError("dup2");
+        if (dup2(stdout_dup, 1) == -1) printCommandError("dup2");
+        close(stdin_dup);
+        close(stdout_dup);
+
 }
 
 void executeSubshell(command_t comm) 
@@ -198,8 +208,7 @@ void executeSubshell(command_t comm)
 	if (comm->input != NULL)	
 	{
 		int fd = open(comm->input, O_RDONLY);
-		if (fd == -1)
-			perror(comm->input);
+		if (fd == -1) printCommandError("open");
 		close(fd);
 		command_t first = comm->u.subshell_command;
 		while(first->type != SIMPLE_COMMAND)
