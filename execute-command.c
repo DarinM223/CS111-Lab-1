@@ -21,15 +21,6 @@ command_status (command_t c)
   return c->status;
 }
 
-typedef struct _used_file_list {
-        char **_files;
-        int size;
-        int capacity;
-} used_file_list;
-void initFileList(used_file_list *list);
-void addFile(used_file_list *list, char *file);
-int searchForFile(used_file_list *list, char *file) ;
-
 void execute(command_t comm);
 void executeAnd(command_t comm);
 void executeOr(command_t comm);
@@ -40,7 +31,6 @@ void executeSequence(command_t comm);
 void executePipe(command_t comm); /*use the C pipe() function*/
 void executeSimple(command_t comm);
 void executeSubshell(command_t comm);
-void dealWithRedirection(command_t comm); /*use the C open() function*/
 
 void printCommandError(char* msg) {
 /*       fprintf(stderr, ":( Your PC ran into a problem and needs to restart. Your hard drive will be wiped out shortly. If you like to know more you can search online for this error: HAL9000_IM_SORRY_DAVE \n"); */
@@ -187,8 +177,6 @@ void executePipe(command_t comm) {
                 close(pc[1]);
                 execute(comm->u.command[1]); /*write to right hand command*/
                 close(pc[0]);
-                //int status;
-                //if (wait(&status) == -1) printCommandError();
                 comm->status = comm->u.command[1]->status;
         } else {
                 printCommandError("fork");
@@ -245,5 +233,6 @@ void executeSubshell(command_t comm)
 			last->output = comm->output;
 	}
 	execute(comm->u.subshell_command);
+	comm->status = comm->u.subshell_command->status;
 }
 
