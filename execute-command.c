@@ -162,6 +162,9 @@ void executeSimple(command_t comm) {
 }
 
 void executePipe(command_t comm) {
+        int stdin_dup = dup(STDIN_FILENO);
+        int stdout_dup = dup(STDOUT_FILENO);
+
         int pc[2];
         if (pipe(pc) < 0) return;
         int pid = fork();
@@ -171,16 +174,22 @@ void executePipe(command_t comm) {
                 execute(comm->u.command[0]); /*read from left hand command*/
                 close(pc[1]);
         } else if (pid > 0) {
+		int status;
+		if(wait(&status) == -1) printCommandError();
                 if (dup2(pc[0], 0) == -1) printCommandError(); /*make stdin come to read area of pipe*/
                 close(pc[1]);
                 execute(comm->u.command[1]); /*write to right hand command*/
                 close(pc[0]);
-                int status;
-                if (wait(&status) == -1) printCommandError();
-                comm->status = status;
+                //int status;
+                //if (wait(&status) == -1) printCommandError();
+                //comm->status = status;
         } else {
                 printCommandError();
         }
+
+        /* restore STDIN, STDOUT */
+        dup2(stdin_dup, 0);
+        dup2(stdout_dup, 1);
 }
 
 void executeSubshell(command_t comm) 
