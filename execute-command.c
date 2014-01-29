@@ -29,8 +29,7 @@ void executeOr(command_t comm);
 void executeSequence(command_t comm); 
 
 void executePipe(command_t comm); /*use the C pipe() function*/
-void executeSimple(command_t comm);
-void executeSubshell(command_t comm);
+void executeSimpleOrSubshell(command_t comm);
 
 void printCommandError(char* msg) {
 /*       fprintf(stderr, ":( Your PC ran into a problem and needs to restart. Your hard drive will be wiped out shortly. If you like to know more you can search online for this error: HAL9000_IM_SORRY_DAVE \n"); */
@@ -66,10 +65,10 @@ void execute(command_t comm ) {
                     executePipe(comm );
                     break;
                 case SIMPLE_COMMAND:
-                    executeSimple(comm );                    
+                    executeSimpleOrSubshell(comm );                    
                     break;
                 case SUBSHELL_COMMAND:
-                    executeSubshell(comm);
+                    executeSimpleOrSubshell(comm );
                     break;
         }
 }
@@ -110,7 +109,7 @@ void executeSequence(command_t comm ) {
         }
 }
 
-void executeSimple(command_t comm) {
+void executeSimpleOrSubshell(command_t comm) {
 	/* deal with redirection */
 	int stdin_dup, stdout_dup;
         if ((stdin_dup = dup(STDIN_FILENO)) == -1) printCommandError("dup");
@@ -139,20 +138,30 @@ void executeSimple(command_t comm) {
                 wait(&stat2);
                 comm->status = stat2;
         } else if (stat1 == 0) {
-                /*its a child*/
-                /*use exec to execute (terminated by NULL)*/
-                /*executes command*/
-		if (strcmp(comm->u.word[0], "exec") == 0) /* special case exec */ 
+                /*it's a child*/
+		/* simple command */
+		if (comm->type == SIMPLE_COMMAND)
 		{
-			comm->status = execvp(comm->u.word[1], comm->u.word+1); /* use second word as filename */
-			if (comm->status != 0) perror(comm->u.word[1]);
+                	/*use exec to execute (terminated by NULL)*/
+                	/*executes command*/
+			if (strcmp(comm->u.word[0], "exec") == 0) /* special case exec */ 
+			{
+				comm->status = execvp(comm->u.word[1], comm->u.word+1); /* use second word as filename */
+				if (comm->status != 0) perror(comm->u.word[1]);
+			}
+			else
+			{
+                		comm->status = execvp(*comm->u.word, comm->u.word);
+				if (comm->status != 0) perror(comm->u.word[0]);
+			}
+			exit(comm->status);
 		}
-		else
+		else /* subshell */
 		{
-                	comm->status = execvp(*comm->u.word, comm->u.word);
-			if (comm->status != 0) perror(comm->u.word[0]);
+			execute(comm->u.subshell_command);
+			if (comm->u.subshell_command->status != 0) perror("subshell");
+                	exit(comm->u.subshell_command->status);
 		}
-		exit(comm->status);
         }
 
 	/* restore STDIN, STDOUT */
@@ -195,51 +204,5 @@ void executePipe(command_t comm) {
         close(stdin_dup);
         close(stdout_dup);
 
-}
-
-void executeSubshell(command_t comm) 
-{
-	/* deal with I/O */
-	if (comm->input != NULL)	
-	{
-		int fd = open(comm->input, O_RDONLY);
-		if (fd == -1) printCommandError("open");
-		close(fd);
-		command_t first = comm->u.subshell_command;
-		while(first->type != SIMPLE_COMMAND)
-        	{
-                	if (first->type == SUBSHELL_COMMAND)
-			{
-                        	executeSubshell(first);
-				break;
-			}		
-                	else
-                        	first = first->u.command[0];
-        	}
-		if (first->input == NULL)
-			first->input = comm->input; 
-	}
-	if (comm->output != NULL)
-	{
-                int fd = open(comm->output, O_WRONLY | O_CREAT, 0644);
-                if (fd == -1)
-                        perror(comm->output);
-                close(fd);
-		command_t last = comm->u.subshell_command;
-		while(last->type != SIMPLE_COMMAND)
-	        {
-        	        if (last->type == SUBSHELL_COMMAND)
-			{
-                	        executeSubshell(last);
-				break;
-			}
-               		else
-                       	 	last = last->u.command[1];
-        	}
-		if (last->output == NULL)
-			last->output = comm->output;
-	}
-	execute(comm->u.subshell_command);
-	comm->status = comm->u.subshell_command->status;
 }
 
