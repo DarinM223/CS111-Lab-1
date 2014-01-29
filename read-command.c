@@ -124,11 +124,13 @@ make_command_stream (int (*get_next_byte) (void *),
    */
   /* read every byte */
   for (curByte = get_next_byte(get_next_byte_argument); curByte != EOF ; curByte = get_next_byte(get_next_byte_argument)) {
-
+      
+      if ((opFlag == LEFT_REDIRECT || opFlag == RIGHT_REDIRECT) && curByte == '(' ) /* if '(' is preceded by '<' or '>' */
+          printError(lineNum);
       /* *************
        * Unsets flag *
        * *************/
-      if (opFlag != -1 && (isValidWordChar(curByte) || curByte == '(')) opFlag = -1; /*if op flag is set and the char is either a word char or a '(' unset the flag*/ 
+      if ((opFlag != -1 && !(opFlag == SEQUENCE_COMMAND && prevChar == '\n')) && (isValidWordChar(curByte) || curByte == '(')) opFlag = -1; /*if op flag is set and the char is either a word char or a '(' unset the flag*/ 
 
 
       /* *******************************************
@@ -167,24 +169,31 @@ make_command_stream (int (*get_next_byte) (void *),
                     continue;
                }  else {
                      if (subshellFlag > 0) {
-                        /*its a semicolon*/
+                        /*add a semicolon*/
                      	if (!subshellLock) {
                         	if (!isEmpty(str)) {
                                 	command_t com = createSimpleCommand(str);
                                 	commandPush(_comStack, com);
-                        	} else { printError(lineNum); }
+                        	} else if (opFlag == SEQUENCE_COMMAND) {
+                                        opFlag = -1;
+                                        opPop(_opStack);
+                                } else { printError(lineNum); }
                      	} else { subshellLock = 0; }
                      	if (dealWithOperator(_opStack, _comStack, SEQUENCE_COMMAND) == 0) printError(lineNum);
-                     	opFlag = -1;
+                     	opFlag = SEQUENCE_COMMAND;
                      	resetString(&str, &str_size, STRALLOCSIZE);
                         prevChar = 0;
                      } else {
                      /*add the command tree to the command stream*/
                      /*add the last command*/
+                     /*deal with semicolon*/
                      if (!subshellLock) {
                         if (!isEmpty(str)) {
                                 command_t com = createSimpleCommand(str);
                                 commandPush(_comStack, com);
+                        } else if (opFlag == SEQUENCE_COMMAND) {
+                                opFlag = -1;
+                                opPop(_opStack); /*pop the sequence operator*/
                         } else { printError(lineNum); }
                      } else { subshellLock = 0; }
                      resetString(&str, &str_size, STRALLOCSIZE);
@@ -213,10 +222,7 @@ make_command_stream (int (*get_next_byte) (void *),
                }
            }
            if (curByte == '(') {
-                  if (opFlag == '<' || opFlag == '>') { /*if the operator flag is < or > */
-                          /*print error*/
-                          printError(lineNum);
-                  }
+		  if (!isEmpty(str)) printError(lineNum); /* if not start of line and not preceded by an operator */
                   if (dealWithOperator(_opStack, _comStack, SUBSHELL_COMMAND) == 0) printError(lineNum);
                   subshellFlag++; /*increase number of subshells*/
                   resetString(&str, &str_size, STRALLOCSIZE);
@@ -233,7 +239,7 @@ make_command_stream (int (*get_next_byte) (void *),
               /*print error*/
               printError(lineNum);
           }
-          if (prevChar == '\n') printError(lineNum);
+          if (prevChar == '\n' && curByte != ')') printError(lineNum);
 
 
           if (curByte == '&') {
@@ -282,6 +288,9 @@ make_command_stream (int (*get_next_byte) (void *),
                         if (!isEmpty(str)) {
                                 command_t com = createSimpleCommand(str);
                                 commandPush(_comStack, com);
+                        } else if (opFlag == SEQUENCE_COMMAND) {
+                                opFlag = -1;
+                                opPop(_opStack);
                         } else { printError(lineNum); }
                   } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, END_SUBSHELL_COMMAND) == 0) printError(lineNum);
@@ -330,6 +339,8 @@ make_command_stream (int (*get_next_byte) (void *),
               /*act as if the character is a newline*/
               if (opFlag == -1 &&  (subshellLock != 0 || (!isEmpty(str)))) { /*if it is a complete command*/
                   prevChar = '\n'; /*set the previous char to '\n'*/
+              } else if (opFlag == SEQUENCE_COMMAND ) {
+                      prevChar = '\n';
               } else {/* if there is an operator flag or there isn't anything to add*/
                       /*do nothing*/
                       continue;
@@ -355,6 +366,9 @@ make_command_stream (int (*get_next_byte) (void *),
         if (!isEmpty(str)) {
                 command_t com = createSimpleCommand(str);
                 commandPush(_comStack, com);
+        } else if (opFlag == SEQUENCE_COMMAND) {
+                opFlag = -1;
+                opPop(_opStack);
         } else { printError(lineNum); }
   } else { subshellLock = 0; }
   resetString(&str, &str_size, STRALLOCSIZE);
