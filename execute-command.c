@@ -143,9 +143,16 @@ void executeSimple(command_t comm) {
                 /*use exec to execute (terminated by NULL)*/
                 /*executes command*/
 		if (strcmp(comm->u.word[0], "exec") == 0) /* special case exec */ 
-			execvp(comm->u.word[1], comm->u.word+1); /* use second word as filename */
+		{
+			comm->status = execvp(comm->u.word[1], comm->u.word+1); /* use second word as filename */
+			if (comm->status != 0) perror(comm->u.word[1]);
+		}
 		else
-                	execvp(*comm->u.word, comm->u.word);
+		{
+                	comm->status = execvp(*comm->u.word, comm->u.word);
+			if (comm->status != 0) perror(comm->u.word[0]);
+		}
+		exit(comm->status);
         }
 
 	/* restore STDIN, STDOUT */
