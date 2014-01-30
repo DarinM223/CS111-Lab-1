@@ -144,9 +144,7 @@ void executeSimpleOrSubshell(command_t comm) {
 		{
                 	/*use exec to execute (terminated by NULL)*/
                 	/*executes command*/
-                        if (comm->u.word[0] == NULL) {
-                                exit(0);
-                        } else if (strcmp(comm->u.word[0], "exec") == 0) /* special case exec */ 
+			if (strcmp(comm->u.word[0], "exec") == 0) /* special case exec */ 
 			{
 				comm->status = execvp(comm->u.word[1], comm->u.word+1); /* use second word as filename */
 				if (comm->status != 0) perror(comm->u.word[1]);

@@ -300,10 +300,10 @@ make_command_stream (int (*get_next_byte) (void *),
                   prevChar = 0;
           } else if (curByte == '<') {
                   if (!subshellLock) {
-                        /*if (!isEmpty(str)) {*/
+                        if (!isEmpty(str)) {
                                 command_t com = createSimpleCommand(str);
                                 commandPush(_comStack, com);
-                        /*} else { printError(lineNum); }*/
+                        } else { printError(lineNum); }
                   } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, LEFT_REDIRECT) == 0) printError(lineNum);
                   opFlag = LEFT_REDIRECT;
@@ -311,10 +311,10 @@ make_command_stream (int (*get_next_byte) (void *),
                   prevChar = 0;
           } else if (curByte == '>') {
                   if (!subshellLock) {
-                        /*if (!isEmpty(str)) {*/
+                        if (!isEmpty(str)) {
                                 command_t com = createSimpleCommand(str);
                                 commandPush(_comStack, com);
-                        /*} else { printError(lineNum); }*/
+                        } else { printError(lineNum); }
                   } else { subshellLock = 0; }
                   if (dealWithOperator(_opStack, _comStack, RIGHT_REDIRECT) == 0) printError(lineNum);
                   opFlag = RIGHT_REDIRECT;
