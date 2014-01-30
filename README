@@ -6,6 +6,7 @@ Limitations:
   e.g. cat a;
        EOF
   Reports a syntax error at line 2.
+***  EDIT: Fixed in 1b ***
 
 Our choice of implementation if the spec is unclear:
 - Newlines after complete commands separate 2 commands if outside of subshell.
