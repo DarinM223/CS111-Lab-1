@@ -124,7 +124,7 @@ void executeSimpleOrSubshell(command_t comm) {
         }
         if (comm->output != NULL)
         {
-                if ((fd1 = open(comm->output, O_WRONLY | O_CREAT, 0644)) == -1) printCommandError("open");
+                if ((fd1 = open(comm->output, O_WRONLY | O_CREAT | O_TRUNC, 0644)) == -1) printCommandError("open");
                 if (dup2(fd1, STDOUT_FILENO) == -1) printCommandError("dup2");
                 close(fd1);
         }
@@ -144,7 +144,9 @@ void executeSimpleOrSubshell(command_t comm) {
 		{
                 	/*use exec to execute (terminated by NULL)*/
                 	/*executes command*/
-			if (strcmp(comm->u.word[0], "exec") == 0) /* special case exec */ 
+                        if (comm->u.word[0] == NULL) {
+                                exit(0);
+                        } else if (strcmp(comm->u.word[0], "exec") == 0) /* special case exec */ 
 			{
 				comm->status = execvp(comm->u.word[1], comm->u.word+1); /* use second word as filename */
 				if (comm->status != 0) perror(comm->u.word[1]);
@@ -159,7 +161,6 @@ void executeSimpleOrSubshell(command_t comm) {
 		else /* subshell */
 		{
 			execute(comm->u.subshell_command);
-			if (comm->u.subshell_command->status != 0) perror("subshell");
                 	exit(comm->u.subshell_command->status);
 		}
         }
