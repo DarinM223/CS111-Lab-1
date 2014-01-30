@@ -44,10 +44,16 @@ for bad in \
   '(a|b' \
   'a;b)' \
   '( (a)' \
-  'a>>>b'
+  'a>>>b' \
+  'cattt a' \
+  'sort <asdfghjkl' \
+  '(asdf) && echo hello' \
+  'sort < claire_zhang' \
+  'echo hello | qpewer' \
+  'exec exec' 
 do
   echo "$bad" >test$n.sh || exit
-  ../timetrash -p test$n.sh >test$n.out 2>test$n.err && {
+  ../timetrash test$n.sh >test$n.out 2>test$n.err && {
     echo >&2 "test$n: unexpectedly succeeded for: $bad"
     status=1
   }

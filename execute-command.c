@@ -32,7 +32,7 @@ void executePipe(command_t comm); /*use the C pipe() function*/
 void executeSimpleOrSubshell(command_t comm);
 
 void printCommandError(char* msg) {
-/*       fprintf(stderr, ":( Your PC ran into a problem and needs to restart. Your hard drive will be wiped out shortly. If you like to know more you can search online for this error: HAL9000_IM_SORRY_DAVE \n"); */
+      /* fprintf(stderr, ":( Your PC ran into a problem and needs to restart. Your hard drive will be wiped out shortly. If you like to know more you can search online for this error: HAL9000_IM_SORRY_DAVE \n");*/ 
       perror(msg);
       exit(1); /*comment this out to debug*/
 }
@@ -112,19 +112,33 @@ void executeSequence(command_t comm ) {
 void executeSimpleOrSubshell(command_t comm) {
 	/* deal with redirection */
 	int stdin_dup, stdout_dup;
-        if ((stdin_dup = dup(STDIN_FILENO)) == -1) printCommandError("dup");
-        if ((stdout_dup = dup(STDOUT_FILENO)) == -1) printCommandError("dup");
-        
+	if ((stdin_dup = dup(STDIN_FILENO)) == -1) printCommandError("dup");
+	if ((stdout_dup = dup(STDOUT_FILENO)) == -1) printCommandError("dup");
+
 	int fd0, fd1;
         if (comm->input != NULL)
         {
-                if ((fd0 = open(comm->input, O_RDONLY)) == -1) printCommandError("open"); 
+                if ((fd0 = open(comm->input, O_RDONLY)) == -1) 
+		{	
+			perror(comm->input); 
+			comm->status = 1;
+		        close(stdin_dup);
+        		close(stdout_dup);
+			return;
+		}
                 if (dup2(fd0, STDIN_FILENO) == -1) printCommandError("dup2");
                 close(fd0);
         }
         if (comm->output != NULL)
         {
-                if ((fd1 = open(comm->output, O_WRONLY | O_CREAT | O_TRUNC, 0644)) == -1) printCommandError("open");
+                if ((fd1 = open(comm->output, O_WRONLY | O_CREAT | O_TRUNC, 0644)) == -1)
+		{
+			perror(comm->output);
+			comm->status = 1;
+		        close(stdin_dup);
+        		close(stdout_dup);
+			return;
+		}
                 if (dup2(fd1, STDOUT_FILENO) == -1) printCommandError("dup2");
                 close(fd1);
         }
@@ -135,8 +149,9 @@ void executeSimpleOrSubshell(command_t comm) {
                 /*its a parent*/
                 /*wait for child process to finish*/
                 int stat2;
-                wait(&stat2);
-                comm->status = stat2;
+                waitpid(stat1, &stat2, 0);
+		if (WIFEXITED(stat2))
+    			comm->status =  WEXITSTATUS(stat2);
         } else if (stat1 == 0) {
                 /*it's a child*/
 		/* simple command */
@@ -144,17 +159,23 @@ void executeSimpleOrSubshell(command_t comm) {
 		{
                 	/*use exec to execute (terminated by NULL)*/
                 	/*executes command*/
-			if (strcmp(comm->u.word[0], "exec") == 0) /* special case exec */ 
-			{
-				comm->status = execvp(comm->u.word[1], comm->u.word+1); /* use second word as filename */
-				if (comm->status != 0) perror(comm->u.word[1]);
+			int status;
+			if (strcmp(comm->u.word[0], "exec") == 0) /* special case exec */
+			{	
+				if(strcmp(comm->u.word[1], "exec") == 0) 
+					fprintf(stderr,"exec: exec: command not found\n");
+				else
+					status = execvp(comm->u.word[1], comm->u.word+1); /* use second word as filename */
+				if (status == -1)
+					fprintf(stderr,"%s: command not found\n", comm->u.word[1]);
 			}
 			else
 			{
-                		comm->status = execvp(*comm->u.word, comm->u.word);
-				if (comm->status != 0) perror(comm->u.word[0]);
+                		status = execvp(*comm->u.word, comm->u.word);
+				if (status == -1)
+					fprintf(stderr,"%s: command not found\n", comm->u.word[0]);
 			}
-			exit(comm->status);
+			_exit(1);
 		}
 		else /* subshell */
 		{
