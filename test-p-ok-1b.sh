@@ -11,42 +11,22 @@ cd "$tmp" || exit
 cat >test.sh <<'EOF'
 #start script
 cat < /etc/passwd | tr a-z A-Z | sort -u > out || echo failed
-(cat ../README || echo nope.avi) && echo swag
-(cat filenotfound || echo 
-
-noticemesenpaiii) | sort ; echo ORLY && echo YARLY 
+(cat ../README > out || echo nope.avi) && echo swag
+(cat filenotfound || echo noticemesenpaiii) |
+sort ; echo ORLY && echo YARLY 
 TROLOLOL || 
 
 
 
 
 echo NOWAI && echo FUUUUU
-( (cat < ../README | sort
- | sed -n /Darin/p > protestcasewriter.txt) ;)
+( (cat < ../README | sort |
+ sed -n /Darin/p > protestcasewriter.txt) ;)
 cat protestcasewriter.txt ; echo the guy who loves writing dumb test cases ; rm protestcasewriter.txt
 
 EOF
 
 cat >test.exp <<'EOF'
-Lingyu Zhang < 404205755 >
-Darin Minamoto < 704140102 >
-
-Limitations:
-- Our program treats semicolons after complete commands as syntax error.
-  e.g. cat a;
-       EOF
-  Reports a syntax error at line 2.
-
-Our choice of implementation if the spec is unclear:
-- Newlines after complete commands separate 2 commands if outside of subshell.
-  e.g. cat a
-       echo b
-  are two separate commands in command_stream.
-
-- Multiple newlines are treated as a single semicolon if inside of subshell.
-  e.g. (cat a
-        echo b)
-  is interpreted as (cat a; echo b).
 swag
 noticemesenpaiii
 ORLY
