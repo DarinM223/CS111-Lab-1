@@ -34,3 +34,31 @@ struct command
     struct command *subshell_command;
   } u;
 };
+
+struct _fileNode;
+struct _dependencyNode;
+struct _commandTreeNode;
+
+struct _fileNode {
+        char *file;
+        struct _fileNode *next;
+};
+
+struct _dependencyNode {
+        struct _commandTreeNode* dependency;
+        struct _dependencyNode* next;
+}; 
+
+struct _commandTreeNode {
+        struct command *comm;
+
+        int numDependencies;
+        struct _dependencyNode* dependencyList;
+
+        struct _fileNode* inputList;
+        struct _fileNode* outputList;
+
+        int pid;
+        struct _commandTreeNode* next;
+};
+

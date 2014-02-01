@@ -1,5 +1,9 @@
 // UCLA CS 111 Lab 1 command interface
 
+typedef struct _fileNode* fileNode_t;
+typedef struct _dependencyNode* dependencyNode_t;
+typedef struct _commandTreeNode* commandTreeNode_t;
+
 typedef struct command *command_t;
 typedef struct command_stream *command_stream_t;
 

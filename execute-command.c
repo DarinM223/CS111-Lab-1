@@ -2,6 +2,7 @@
 
 #include "command.h"
 #include "command-internals.h"
+#include "alloc.h"
 
 #include <sys/types.h>
 #include <sys/wait.h> 
@@ -20,6 +21,16 @@ command_status (command_t c)
 {
   return c->status;
 }
+
+/* ******************** *
+ * Timetravel functions *
+ * ******************** */
+fileNode_t initFileList(char *word);
+void addFileToList(fileNode_t list, char *word);
+void addCommTreeDependencies(commandTreeNode_t tree, command_t comm);
+void createDependency(commandTreeNode_t source, commandTreeNode_t dependency);
+void findDependencies(commandTreeNode_t treeOne, commandTreeNode_t treeTwo);
+command_t execute_time_travel(command_stream_t s);
 
 void execute(command_t comm);
 void executeAnd(command_t comm);
