@@ -237,3 +237,125 @@ void executePipe(command_t comm) {
 
 }
 
+
+fileNode_t initFileList(char *file) {
+        fileNode_t newFileList = (fileNode_t) checked_malloc(sizeof (fileNode_t));
+        newFileList->file = file; 
+        newFileList->next = NULL;
+        return newFileList;
+}
+void addFileToList(fileNode_t list, char *file) {
+        //if file is already in list, do nothing
+        if (strcmp(list->file, file) == 0) {
+                return;
+        } else if (list->next == NULL) { //if reached the end
+                list->next = (fileNode_t) checked_malloc(sizeof(fileNode_t)); //create a new file node
+                list->next->file = file;
+                list->next->next = NULL;
+        } else { //otherwise keep going down the list
+                addFileToList(list->next, file);
+        }
+}
+void addCommTreeDependencies(commandTreeNode_t  tree, command_t comm) {
+       //add the command inputs and outputs into the input/output lists
+       if (comm->input != NULL) {
+               if (tree->inputList == NULL) {
+                       tree->inputList = initFileList(comm->input);
+               } else {
+                       addFileToList(tree->inputList, comm->input);
+               }
+       }
+       if (comm->output != NULL) {
+               if (tree->outputList == NULL) {
+                       tree->outputList = initFileList(comm->output);
+               } else {
+                       addFileToList(tree->outputList, comm->output);
+               }
+       } 
+
+       
+       switch (comm->type) {
+               //if &&, ||, ;, or | recurse and add the dependencies of the other commands
+               case AND_COMMAND:
+               case OR_COMMAND:
+               case SEQUENCE_COMMAND:
+               case PIPE_COMMAND:
+                       addCommTreeDependencies(tree, comm->u.command[0]);
+                       addCommTreeDependencies(tree, comm->u.command[1]);
+                       break;
+               //if subshell add the subshell's dependencies
+               case SUBSHELL_COMMAND:
+                       addCommTreeDependencies(tree, comm->u.subshell_command);
+                       break;
+               //add the input file arguments of the simple command
+               case SIMPLE_COMMAND:
+                       {
+                               //doesn't deal with flags very well like sort -u something... 
+                               //well better safe than sorry I guess...
+                               int i;
+                               for (i = 1; comm->u.word[i] != NULL; i++) {
+                                       if (tree->inputList == NULL)
+                                               tree->inputList = initFileList(comm->u.word[i]);
+                                       else
+                                               addFileToList(tree->inputList, comm->u.word[i]);
+                               }
+
+                       }
+                       break;
+       }
+}
+
+void createDependency(commandTreeNode_t source, commandTreeNode_t dependency) {
+        dependencyNode_t dependList = source->dependencyList;
+        dependencyNode_t last = dependList;
+        //find last dependency
+        for (;dependList != NULL;dependList = dependList->next) {
+                last = dependList;
+        }
+        //create new node
+        dependencyNode_t newNode = (dependencyNode_t)checked_malloc(sizeof(dependencyNode_t));
+        newNode->dependency = dependency;
+        newNode->next = NULL;
+        if (last != NULL) {
+                last->next = newNode;
+        } else {
+                source->dependencyList = newNode;
+        }
+}
+//treeOne is the current command tree, treeTwo is the previous command tree
+void findDependencies(commandTreeNode_t treeOne, commandTreeNode_t treeTwo) {
+        fileNode_t currOutput = treeOne->outputList;
+        fileNode_t currInput = treeTwo->inputList;
+
+        //loop through the output list of tree one and the input list of tree two
+        for (;currOutput != NULL;currOutput = currOutput->next) {
+                for (;currInput != NULL;currInput = currInput->next) {
+                        //if tree one outputs to a file that tree two reads from
+                        if (strcmp(currInput->file, currOutput->file) == 0) {
+                                //the current tree (treeOne) is a dependency of the previous tree (treeTwo)
+                                treeOne->numDependencies++;
+                                createDependency(treeTwo, treeOne);
+                                return;
+                        }
+                }
+        }
+
+        currOutput = treeTwo->outputList;
+        currInput = treeOne->inputList;
+
+        //loop through the output list of tree two and the input list of tree one
+        for (;currOutput != NULL;currOutput = currOutput->next) {
+                for (;currInput != NULL;currInput = currInput->next) {
+                        //if tree two outputs to a file that tree one reads from 
+                        if (strcmp(currInput->file, currOutput->file) == 0) {
+                                //the current tree (treeOne) is a dependency of the previous tree (treeTwo)
+                                treeOne->numDependencies++;
+                                createDependency(treeTwo, treeOne);
+                                return;
+                        }
+                }
+        }
+
+        //tl;dr if there is ANY conflict between files of the two trees, the current tree will be dependent
+        //on the previous tree to finish first
+}
