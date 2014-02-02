@@ -12,6 +12,7 @@
 #include <error.h>
 #include <fcntl.h>
 #include <string.h>
+#include <termios.h>
 
 /* FIXME: You may need to add #include directives, macro definitions,
    static function definitions, etc.  */
@@ -30,7 +31,6 @@ void addFileToList(fileNode_t list, char *word);
 void addCommTreeDependencies(commandTreeNode_t tree, command_t comm);
 void createDependency(commandTreeNode_t source, commandTreeNode_t dependency);
 void findDependencies(commandTreeNode_t treeOne, commandTreeNode_t treeTwo);
-command_t execute_time_travel(command_stream_t s);
 
 void execute(command_t comm);
 void executeAnd(command_t comm);
@@ -186,12 +186,14 @@ void executeSimpleOrSubshell(command_t comm) {
 				if (status == -1)
 					fprintf(stderr,"%s: command not found\n", comm->u.word[0]);
 			}
-			_exit(1);
+                        tcflush(0, TCIFLUSH);
+			_exit(0);
 		}
 		else /* subshell */
 		{
 			execute(comm->u.subshell_command);
-                	exit(comm->u.subshell_command->status);
+                        tcflush(0, TCIFLUSH);
+                	_exit(comm->u.subshell_command->status);
 		}
         }
 
@@ -216,7 +218,8 @@ void executePipe(command_t comm) {
                 close(pc[0]);
                 execute(comm->u.command[0]); /*read from left hand command*/
                 close(pc[1]);
-		exit(comm->u.command[0]->status);
+                tcflush(0, TCIFLUSH);
+		_exit(comm->u.command[0]->status);
         } else if (pid > 0) {
 		int status;
 		if(wait(&status) == -1) printCommandError("wait");
@@ -239,7 +242,7 @@ void executePipe(command_t comm) {
 
 
 fileNode_t initFileList(char *file) {
-        fileNode_t newFileList = (fileNode_t) checked_malloc(sizeof (fileNode_t));
+        fileNode_t newFileList = (fileNode_t) checked_malloc(sizeof (struct _fileNode));
         newFileList->file = file; 
         newFileList->next = NULL;
         return newFileList;
@@ -249,7 +252,7 @@ void addFileToList(fileNode_t list, char *file) {
         if (strcmp(list->file, file) == 0) {
                 return;
         } else if (list->next == NULL) { //if reached the end
-                list->next = (fileNode_t) checked_malloc(sizeof(fileNode_t)); //create a new file node
+                list->next = (fileNode_t) checked_malloc(sizeof(struct _fileNode)); //create a new file node
                 list->next->file = file;
                 list->next->next = NULL;
         } else { //otherwise keep going down the list
@@ -313,7 +316,7 @@ void createDependency(commandTreeNode_t source, commandTreeNode_t dependency) {
                 last = dependList;
         }
         //create new node
-        dependencyNode_t newNode = (dependencyNode_t)checked_malloc(sizeof(dependencyNode_t));
+        dependencyNode_t newNode = (dependencyNode_t)checked_malloc(sizeof(struct _dependencyNode));
         newNode->dependency = dependency;
         newNode->next = NULL;
         if (last != NULL) {
@@ -358,4 +361,82 @@ void findDependencies(commandTreeNode_t treeOne, commandTreeNode_t treeTwo) {
 
         //tl;dr if there is ANY conflict between files of the two trees, the current tree will be dependent
         //on the previous tree to finish first
+}
+
+command_t execute_time_travel(command_stream_t s) {
+        commandTreeNode_t execListHead = NULL;
+        command_t lastCommand = NULL;
+        command_t currCommand = NULL;
+        while ((currCommand = read_command_stream(s))) {
+                commandTreeNode_t newNode = (commandTreeNode_t)checked_malloc(sizeof(struct _commandTreeNode));
+                newNode->comm = currCommand;
+                newNode->inputList = NULL;
+                newNode->outputList = NULL;
+                newNode->dependencyList = NULL;
+                newNode->numDependencies = 0;
+                newNode->pid = -1;
+                //add the dependencies of the current command into the current node
+                addCommTreeDependencies(newNode, currCommand);
+
+                commandTreeNode_t lastNode = execListHead, currNode = execListHead;
+
+                //go through all of the commands already executing/waiting
+                for (;currNode != NULL;currNode = currNode->next) {
+                        //create dependencies with the current node and the other nodes in the list
+                        findDependencies(newNode, currNode);
+                        lastNode = currNode;
+                }
+                //add the current node to the list
+                if (!lastNode) {
+                        execListHead = newNode;
+                } else {
+                        lastNode->next = newNode;
+                }
+
+                lastCommand = currCommand;                
+        }
+        //while there items in the execution list
+        while (execListHead != NULL) {
+                commandTreeNode_t currNode = execListHead;
+                //go through all of the comands already executing/waiting
+                for (;currNode != NULL;currNode = currNode->next) {
+                        //if there are no dependencies to wait for
+                        if (currNode->numDependencies == 0 && currNode->pid < 1) {
+                                //fork a new process
+                                int pid = fork();
+                                if (pid > 0) {
+                                        currNode->pid = pid;
+                                } else if (pid == 0) {
+                                        execute(currNode->comm);
+                                        tcflush(0, TCIFLUSH);
+                                        _exit(currNode->comm->status);
+                                } else {
+                                        printCommandError("fork");
+                                }
+                        }
+                }
+        
+                int status;
+                //pid of a finished process
+                int pid = waitpid(-1, &status, 0);
+                commandTreeNode_t prevNode = NULL;
+                currNode = execListHead;
+                for (;currNode != NULL;currNode = currNode->next) {
+                        if (currNode->pid == pid) {
+                                dependencyNode_t currDependency = currNode->dependencyList;
+                                //go through all of the nodes dependencies
+                                for (;currDependency != NULL;currDependency = currDependency->next) {
+                                        currDependency->dependency->numDependencies--;
+                                }
+                                if (!prevNode) {
+                                        execListHead = currNode->next;
+                                } else {
+                                        prevNode->next = currNode->next;
+                                }
+                                break;
+                        }
+                        prevNode = currNode;
+                }
+        }
+        return lastCommand;
 }

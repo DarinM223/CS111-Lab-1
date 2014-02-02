@@ -24,6 +24,8 @@ void print_command (command_t);
    nonzero.  */
 void execute_command (command_t, int);
 
+command_t execute_time_travel(command_stream_t s);
+
 /* Return the exit status of a command, which must have previously been executed.
    Wait for the command, if it is not already finished.  */
 int command_status (command_t);
