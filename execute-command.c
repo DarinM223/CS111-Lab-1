@@ -28,6 +28,7 @@ command_status (command_t c)
  * ******************** */
 fileNode_t initFileList(char *word);
 void addFileToList(fileNode_t list, char *word);
+commandTreeNode_t addCommandToList(command_t comm, commandTreeNode_t execListHead);
 void addCommTreeDependencies(commandTreeNode_t tree, command_t comm);
 void createDependency(commandTreeNode_t source, commandTreeNode_t dependency);
 void findDependencies(commandTreeNode_t treeOne, commandTreeNode_t treeTwo);
@@ -281,7 +282,7 @@ void addCommTreeDependencies(commandTreeNode_t  tree, command_t comm) {
                //if &&, ||, ;, or | recurse and add the dependencies of the other commands
                case AND_COMMAND:
                case OR_COMMAND:
-               case SEQUENCE_COMMAND:
+	       case SEQUENCE_COMMAND:
                case PIPE_COMMAND:
                        addCommTreeDependencies(tree, comm->u.command[0]);
                        addCommTreeDependencies(tree, comm->u.command[1]);
@@ -363,36 +364,47 @@ void findDependencies(commandTreeNode_t treeOne, commandTreeNode_t treeTwo) {
         //on the previous tree to finish first
 }
 
+commandTreeNode_t addCommandToList(command_t currCommand, commandTreeNode_t execListHead)
+{
+	if (currCommand->type == SEQUENCE_COMMAND){
+		execListHead = addCommandToList(currCommand->u.command[0], execListHead);
+		execListHead = addCommandToList(currCommand->u.command[1], execListHead);
+	}
+	else{
+		commandTreeNode_t newNode = (commandTreeNode_t)checked_malloc(sizeof(struct _commandTreeNode));
+        	newNode->comm = currCommand;
+        	newNode->inputList = NULL;
+        	newNode->outputList = NULL;
+        	newNode->dependencyList = NULL;
+        	newNode->numDependencies = 0;
+        	newNode->pid = -1;
+       		 //add the dependencies of the current command into the current node
+        	addCommTreeDependencies(newNode, currCommand);
+
+        	commandTreeNode_t lastNode = execListHead, currNode = execListHead;
+
+       		 //go through all of the commands already executing/waiting
+        	for (;currNode != NULL;currNode = currNode->next) {
+        	//create dependencies with the current node and the other nodes in the list
+        		findDependencies(newNode, currNode);
+        		lastNode = currNode;
+        	}
+        	//add the current node to the list
+        	if (!lastNode) {
+        		execListHead = newNode;
+        	} else {
+        		lastNode->next = newNode;
+        	}
+	}
+	return execListHead;
+}
+
 command_t execute_time_travel(command_stream_t s) {
         commandTreeNode_t execListHead = NULL;
         command_t lastCommand = NULL;
         command_t currCommand = NULL;
         while ((currCommand = read_command_stream(s))) {
-                commandTreeNode_t newNode = (commandTreeNode_t)checked_malloc(sizeof(struct _commandTreeNode));
-                newNode->comm = currCommand;
-                newNode->inputList = NULL;
-                newNode->outputList = NULL;
-                newNode->dependencyList = NULL;
-                newNode->numDependencies = 0;
-                newNode->pid = -1;
-                //add the dependencies of the current command into the current node
-                addCommTreeDependencies(newNode, currCommand);
-
-                commandTreeNode_t lastNode = execListHead, currNode = execListHead;
-
-                //go through all of the commands already executing/waiting
-                for (;currNode != NULL;currNode = currNode->next) {
-                        //create dependencies with the current node and the other nodes in the list
-                        findDependencies(newNode, currNode);
-                        lastNode = currNode;
-                }
-                //add the current node to the list
-                if (!lastNode) {
-                        execListHead = newNode;
-                } else {
-                        lastNode->next = newNode;
-                }
-
+		execListHead = addCommandToList(currCommand, execListHead);
                 lastCommand = currCommand;                
         }
         //while there items in the execution list
