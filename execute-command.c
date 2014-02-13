@@ -12,7 +12,6 @@
 #include <error.h>
 #include <fcntl.h>
 #include <string.h>
-#include <termios.h>
 
 /* FIXME: You may need to add #include directives, macro definitions,
    static function definitions, etc.  */
@@ -187,13 +186,11 @@ void executeSimpleOrSubshell(command_t comm) {
 				if (status == -1)
 					fprintf(stderr,"%s: command not found\n", comm->u.word[0]);
 			}
-                        tcflush(0, TCIFLUSH);
 			_exit(0);
 		}
 		else /* subshell */
 		{
 			execute(comm->u.subshell_command);
-                        tcflush(0, TCIFLUSH);
                 	_exit(comm->u.subshell_command->status);
 		}
         }
@@ -219,7 +216,6 @@ void executePipe(command_t comm) {
                 close(pc[0]);
                 execute(comm->u.command[0]); /*read from left hand command*/
                 close(pc[1]);
-                tcflush(0, TCIFLUSH);
 		_exit(comm->u.command[0]->status);
         } else if (pid > 0) {
 		int status;
@@ -326,6 +322,7 @@ void createDependency(commandTreeNode_t source, commandTreeNode_t dependency) {
                 source->dependencyList = newNode;
         }
 }
+        
 //treeOne is the current command tree, treeTwo is the previous command tree
 void findDependencies(commandTreeNode_t treeOne, commandTreeNode_t treeTwo) {
         fileNode_t currOutput = treeOne->outputList;
@@ -360,6 +357,20 @@ void findDependencies(commandTreeNode_t treeOne, commandTreeNode_t treeTwo) {
                 }
         }
 
+        currOutput = treeTwo->outputList; 
+        fileNode_t currOutput2 = treeOne->outputList;
+
+        for (;currOutput != NULL; currOutput = currOutput->next) {
+                for (;currOutput2 != NULL;currOutput2 = currOutput2->next) {
+                        //if tree one outputs to a file that tree two outputs to
+                        if (strcmp(currOutput->file, currOutput2->file) == 0) {
+                                //the current tree (treeOne) is a dependency of the previous tree (treeTwo)
+                                treeOne->numDependencies++;
+                                createDependency(treeTwo, treeOne);
+                                return;
+                        }
+                }
+        }
         //tl;dr if there is ANY conflict between files of the two trees, the current tree will be dependent
         //on the previous tree to finish first
 }
@@ -420,7 +431,6 @@ command_t execute_time_travel(command_stream_t s) {
                                         currNode->pid = pid;
                                 } else if (pid == 0) {
                                         execute(currNode->comm);
-                                        tcflush(0, TCIFLUSH);
                                         _exit(currNode->comm->status);
                                 } else {
                                         printCommandError("fork");
