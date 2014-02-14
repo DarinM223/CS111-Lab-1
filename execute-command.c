@@ -437,7 +437,7 @@ command_t execute_time_travel(command_stream_t s) {
                         }
                 }
         
-                int status;
+                int status = -1;
                 //pid of a finished process
                 int pid = waitpid(-1, &status, 0);
                 commandTreeNode_t prevNode = NULL;
@@ -449,9 +449,10 @@ command_t execute_time_travel(command_stream_t s) {
                                 for (;currDependency != NULL;currDependency = currDependency->next) {
                                         currDependency->dependency->numDependencies--;
                                 }
+		                if (WIFEXITED(status))
+                                         currNode->comm->status = WEXITSTATUS(status);
                                 if (!prevNode) {
                                         execListHead = currNode->next;
-                                        currNode->comm->status = status;
                                         if (execListHead == NULL ) {
                                                 lastCommand = currNode->comm;
                                         }

@@ -2,11 +2,8 @@ Lingyu Zhang < 404205755 >
 Darin Minamoto < 704140102 >
 
 Limitations:
-- Our program treats semicolons after complete commands as syntax error.
-  e.g. cat a;
-       EOF
-  Reports a syntax error at line 2.
-***  EDIT: Fixed in 1b ***
+-Our program doesn't parallelize commands inside subshells, meaning that (echo hello ; echo world)
+will always print out hello then world. 
 
 Our choice of implementation if the spec is unclear:
 - Newlines after complete commands separate 2 commands if outside of subshell.
