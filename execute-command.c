@@ -186,12 +186,12 @@ void executeSimpleOrSubshell(command_t comm) {
 				if (status == -1)
 					fprintf(stderr,"%s: command not found\n", comm->u.word[0]);
 			}
-			_exit(0);
+			_exit(1);
 		}
 		else /* subshell */
 		{
 			execute(comm->u.subshell_command);
-                	_exit(comm->u.subshell_command->status);
+                	exit(comm->u.subshell_command->status);
 		}
         }
 
@@ -216,7 +216,7 @@ void executePipe(command_t comm) {
                 close(pc[0]);
                 execute(comm->u.command[0]); /*read from left hand command*/
                 close(pc[1]);
-		_exit(comm->u.command[0]->status);
+		exit(comm->u.command[0]->status);
         } else if (pid > 0) {
 		int status;
 		if(wait(&status) == -1) printCommandError("wait");
