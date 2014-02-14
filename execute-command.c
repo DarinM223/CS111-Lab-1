@@ -416,7 +416,6 @@ command_t execute_time_travel(command_stream_t s) {
         command_t currCommand = NULL;
         while ((currCommand = read_command_stream(s))) {
 		execListHead = addCommandToList(currCommand, execListHead);
-                lastCommand = currCommand;                
         }
         //while there items in the execution list
         while (execListHead != NULL) {
@@ -452,15 +451,16 @@ command_t execute_time_travel(command_stream_t s) {
                                 }
                                 if (!prevNode) {
                                         execListHead = currNode->next;
+                                        currNode->comm->status = status;
+                                        if (execListHead == NULL ) {
+                                                lastCommand = currNode->comm;
+                                        }
                                 } else {
                                         prevNode->next = currNode->next;
                                 }
                                 break;
                         }
                         prevNode = currNode;
-                }
-                if (execListHead == NULL) {
-                        lastCommand->status = status;
                 }
         }
         return lastCommand;
