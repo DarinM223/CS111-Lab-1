@@ -431,7 +431,7 @@ command_t execute_time_travel(command_stream_t s) {
                                         currNode->pid = pid;
                                 } else if (pid == 0) {
                                         execute(currNode->comm);
-                                        _exit(currNode->comm->status);
+                                        exit(currNode->comm->status);
                                 } else {
                                         printCommandError("fork");
                                 }
@@ -458,6 +458,9 @@ command_t execute_time_travel(command_stream_t s) {
                                 break;
                         }
                         prevNode = currNode;
+                }
+                if (execListHead == NULL) {
+                        lastCommand->status = status;
                 }
         }
         return lastCommand;
